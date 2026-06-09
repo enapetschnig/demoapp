@@ -1,0 +1,902 @@
+[
+  {
+    "subsystem": "React/Vite/Supabase App Shell & Infrastructure (monti.pro)",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/App.tsx",
+        "role": "Main routing orchestrator: QueryClientProvider → BrowserRouter → OnboardingProvider → Routes. Defines all protected/public routes with feature flags. Uses ProtectedRoute wrapper for auth+permissions checking."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/main.tsx",
+        "role": "Entry point: renders App into #root with ErrorBoundary + QueryProvider wrapping."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/AppLayout.tsx",
+        "role": "Responsive layout switcher: renders sidebar+layout on desktop, plain Outlet on mobile. Uses useIsMobile hook for responsive behavior."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/AppSidebar.tsx",
+        "role": "Main navigation with grouped menu sections (Hauptmenü, Dokumente, Verwaltung, System). Filters items by feature permissions. Displays user name + logout in footer."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ProtectedRoute.tsx",
+        "role": "Auth + permission gatekeeper: checks user existence, account activation, freelancer redirect, and feature-level permissions (via role_permissions table). Returns loading/pending/forbidden/authenticated states."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/Auth.tsx",
+        "role": "Login form with username-to-email conversion (@app.monti.pro domain), password reset via WhatsApp, must_change_password flag, freelancer redirect."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/integrations/supabase/client.ts",
+        "role": "Supabase client initialization with localStorage persistence, auto token refresh, and full TypeScript Database type."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/hooks/usePermissions.ts",
+        "role": "Loads user role + role_permissions table into local state, listens to auth state changes and RLS policy updates via realtime channel. Provides canView/canEdit callbacks."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/contexts/OnboardingContext.tsx",
+        "role": "PWA install guide trigger: detects new users (anleitung_completed = false), shows dialog once per session using sessionStorage flag."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/hooks/useSessionKeepalive.ts",
+        "role": "Prevents 24h session timeout: refreshes token every 30min + on window focus if <10min until expiry."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ErrorBoundary.tsx",
+        "role": "Catches unhandled React render errors, shows user-friendly card with reset + home buttons. Logs to console."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/index.css",
+        "role": "Tailwind base layers: HSL-based design tokens (primary=dark blue #1F3A5F, accent=blue #0077CC, success=green #4CAF50). Dark mode variant. Montserrat + Segoe UI font stack."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/tailwind.config.ts",
+        "role": "Tailwind config with sidebar color extensions, accordion animations, chunk size warnings (700KB), manual chunks for PDF/Excel/Radix/Charts libs."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/vite.config.ts",
+        "role": "Vite + SWC + PWA config. VitePWA with auto-update, manifest (BKS branding), workbox caching (5MB limit). Chunk splitting for large deps. Lovable tagger in dev."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/index.html",
+        "role": "Entry HTML with PWA meta tags (theme-color, apple-mobile-web-app-capable, apple-touch-icon). Auto-reload on chunk load failure after deployment."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260220125330_884bcb13-3e79-47c9-9217-da43d3696bb4.sql",
+        "role": "Example RLS policies: user_id-based SELECT/INSERT/UPDATE/DELETE with admin bypass via has_role(auth.uid(), 'administrator'). Joined table access via EXISTS subquery."
+      }
+    ],
+    "dataModel": [
+      "Tables: auth.users (Supabase built-in), profiles (id=user_id, vorname, nachname, is_active, anleitung_completed, must_change_password), employees (user_id, ist_freelancer), user_roles (user_id, role), role_permissions (role, feature, can_view, can_edit), admin_config_options (kategorie, wert, label, sort_order, is_active, farbe), invoices (user_id, project_id, typ, nummer, status, kunde_*, netto/brutto sums), invoice_items (invoice_id, position, menge, einzelpreis), disturbances, projects, time_entries, etc.",
+      "Multi-tenancy: Single-workspace model — no org_id or company scoping in queries. RLS relies on user_id ownership + admin role bypass. Projects/invoices/time_entries tied to user.id + optional project_id. All data filtered by auth.uid() in RLS policies.",
+      "Auth model: Supabase Auth (email/password) with profiles trigger auto-create on signup. Freelancers flagged in employees table (ist_freelancer boolean), routed to /freelancer page. Regular employees see full sidebar. Account activation gated by profiles.is_active.",
+      "Feature permissions: Role-based access via user_roles.role → role_permissions lookup. Features: zeiterfassung, projekte, rechnungen, plantafel, kalender, bautagesberichte, protokolle, kunden, materialien, admin, stundenauswertung, eingangsrechnungen. Applied at both route + sidebar level.",
+      "Config tables: admin_config_options stores dropdown options (projekt_bereich, project statuses, etc.) sorted + color-coded. Loaded on-demand via useConfigOptions hook.",
+      "RLS enforcement: Every table has ALTER TABLE...ENABLE ROW LEVEL SECURITY. Policies use auth.uid() comparisons (ownership) + has_role(auth.uid(), 'administrator'::app_role). Joined tables use EXISTS subqueries to traverse parent ownership."
+    ],
+    "reusablePatterns": [
+      "QueryClient singleton at module level (new QueryClient() in App.tsx), wrapped as QueryClientProvider around Router — allows tanstack/react-query anywhere. No custom query hooks in App — patterns deferred to pages.",
+      "Supabase client singleton (src/integrations/supabase/client.ts) with auto-refresh + localStorage persistence. Export once, import everywhere: import { supabase } from '@/integrations/supabase/client'.",
+      "Context + Provider pattern (OnboardingProvider): wraps Routes, provides state + callbacks. sessionStorage for one-time dialogs per session. Auth state listener with isMounted flag to prevent memory leaks on unmount.",
+      "usePermissions hook: Loads role+permissions once on auth state change, listens to RLS policy changes via supabase.channel().on('postgres_changes'), triggers canView/canEdit callbacks. Real-time sync without refetching entire page.",
+      "ProtectedRoute wrapper: Async checkAccess() in useEffect, sets status states (loading/authenticated/forbidden/pending/redirect-freelancer), renders appropriate UI or children. Used for both feature gates and auth checks.",
+      "AppSidebar pattern: MENU_GROUPS array of grouped items (label, icon, path, feature). Filters via canView(feature), maps to SidebarMenuItem + Link. Active state via isActive() path comparison. Logout via supabase.auth.signOut({ scope: 'local' }).",
+      "Responsive layout: useIsMobile (768px breakpoint) in AppLayout, returns plain Outlet on mobile vs SidebarProvider + sidebar on desktop. No need for separate mobile nav — sidebar component handles collapse icon state.",
+      "Session keepalive: useSessionKeepalive hook with setInterval(refresh, 30min) + window focus listener. Checks expires_at token, refreshes if <10min until expiry. Silent fail on error — user notified on next save attempt.",
+      "RLS policy cascade: Child tables use EXISTS (SELECT 1 FROM parent WHERE parent.user_id = auth.uid() OR admin) to inherit parent access. Eliminates need for redundant user_id columns on every table.",
+      "Feature flags as route params: ProtectedRoute <feature='rechnungen'> prop maps to role_permissions lookup. Sidebar filters same features dynamically. Single source of truth: FEATURES array in usePermissions.ts.",
+      "Accent color theming: All colors stored as HSL variables in :root (--primary, --accent, --secondary). Tailwind extends with hsl(var(--primary)) — swap HSL values to rebrand entire app.",
+      "Error boundary: Class component, catches render errors + logs. Shows collapsible error details card. reset() clears state, goHome() navigates + clears. Wrapped at root level to catch all children.",
+      "PWA manifest via vite-plugin-pwa: Defines app name, icons, theme color, display: standalone. Auto-update strategy. Workbox caching with glob patterns + 5MB size limit per file. Icons should be 192x192 + 512x512 + apple-touch-icon 180x180.",
+      "Auto-reload on chunk failure: index.html script listens for 'Failed to fetch dynamically imported module' error, calls window.location.reload(). Handles deployment cache-busting automatically.",
+      "Config options pattern: useConfigOptions(kategorie) fetches + caches admin_config_options where kategorie matches. Sorted by sort_order, filters is_active=true. Provides options array + loading + refetch callback. Used for dropdowns throughout app."
+    ],
+    "pitfalls": [
+      "No multi-tenant isolation: All data scoped to user.id only, no company/organization filtering at RLS layer. If you scale to multi-company setups, will require major RLS rewrite (org_id on every table + policy updates).",
+      "usePermissions loads role_permissions once at auth state change — if role changes, app doesn't auto-refetch unless manual reload. Consider adding a refetch callback to admin panel when assigning roles.",
+      "ProtectedRoute checks are serial (auth → profile.is_active → freelancer check → feature permission) — multiple DB round-trips on every route. Consider batching into single query or caching in custom hook.",
+      "Session keepalive silent-fails on token refresh — user might work for 30min without realizing token expired, then lose work on next save. Should show toast notification on failed refresh.",
+      "OnboardingContext checks anleitung_completed via sessionStorage — if user opens app in two tabs, both might show install dialog (only one session key). Use user.id + localStorage instead for persistent flag.",
+      "MENU_GROUPS static array doesn't adapt if feature permissions change during session — sidebars won't re-render. Wrap array in useMemo or call usePermissions refetch on auth changes to trigger sidebar rerender.",
+      "ErrorBoundary is class-based (not hooks-compatible) — cannot use hooks inside it. If you need to integrate with error tracking (Sentry, etc.), must do it via console.error + separate effect listener.",
+      "AppLayout checks isMobile on mount, doesn't re-check on window resize — if user resizes desktop → mobile, sidebar stays visible (or vice versa). useIsMobile hook already handles this, but AppLayout doesn't trigger re-render.",
+      "RLS policy cascade with EXISTS queries performs a sub-query per row during SELECT — large tables (1000+ invoices) might slow on reads. Consider denormalizing user_id or company_id on child tables for performance.",
+      "Freelancer redirect in ProtectedRoute checks employees.ist_freelancer on every protected route — redundant DB calls. Cache freelancer status in user_roles table instead.",
+      "Username-to-email conversion in Auth page hardcodes @app.monti.pro domain — if you change domains or add multiple orgs, logic breaks. Extract to env variable or RLS function.",
+      "useConfigOptions refetch callback only re-fetches on kategorie change — doesn't listen to real-time DB updates. Wrap with supabase.channel().on('postgres_changes') for live option updates.",
+      "VSCode alias '@/' only works if tsconfig.json + vite.config.ts both define the same path.resolve('src'). Mismatch = imports work in IDE but fail at build time.",
+      "vite.config.ts manualChunks hard-codes dependency names (jspdf, xlsx, @radix-ui) — if you upgrade or remove libs, chunks still defined but never used. Audit on each major version bump.",
+      "PWA manifest.json hardcodes BKS branding name + theme-color — rebranding requires code change + rebuild. No dynamic PWA switching.",
+      "index.html auto-reload script only listens for import errors — other deployment issues (failed CSS/HTML fetch) won't trigger reload. Should expand regex pattern.",
+      "Tailwind darkMode: ['class'] requires manual .dark class on <html> — no system preference detection. Use 'media' or add useEffect(() => { if (prefersDark) html.classList.add('dark') }) hook.",
+      "SidebarProvider context not exposed to pages — if you need sidebar state (collapsed/expanded) in a page, must pass via props or create separate context."
+    ],
+    "recommendations": [
+      "For HERO rebuild: Introduce org_id + workspace context at root. Supabase RLS should filter all queries by auth.uid() AND current_workspace_id from JWT custom claims or realtime channel subscription. Design tables with org_id as first column after id.",
+      "Add realtime subscription layer: Rather than usePermissions refetching, subscribe to role_permissions table via supabase.channel().on() and update perms state live. Same for admin_config_options — users see updated options without page reload.",
+      "Batch auth checks: Combine ProtectedRoute checks (user existence, is_active, freelancer flag, feature permission) into single RPC function or VIEW query. Reduce DB round-trips from 4+ to 1.",
+      "Extract theme switching: Move accent color + dark mode to user preference table (profiles.theme_color, profiles.dark_mode). Expose UI toggle in account settings. Load on auth state change.",
+      "Consolidate freelancer/employee routing: Create a single auth context that loads user.role + employee.ist_freelancer + feature permissions once, expose via useAuth hook. Avoid duplicate queries in ProtectedRoute, AppSidebar, Auth page.",
+      "Add error tracking: Integrate Sentry or similar into ErrorBoundary + useSessionKeepalive error handlers. Surface token refresh failures + RLS policy violations with alerts.",
+      "Improve session timeout UX: Don't silent-fail token refresh. Show 5-second warning toast + auto-refresh, fallback to 'session expired, please login again' dialog. Auto-redirect to /auth if refresh fails twice.",
+      "Schema: Add user_id + org_id denormalization on large tables (invoices, projects, time_entries) even if redundant. Index by (org_id, user_id) for fast RLS filtering.",
+      "PWA dynamic: Store app name/theme color in admin settings table. Fetch on load, regenerate manifest + register service worker dynamically. Supports multi-tenant branding from single codebase.",
+      "Testing: Add integration tests for ProtectedRoute feature gates + RLS policies. Verify users can't access features they don't have permission for, admins can access all.",
+      "Performance: Audit useConfigOptions calls — if same kategorie is loaded in multiple components, wrap in useMemo or create centralized config context to prevent duplicate queries.",
+      "Documentation: Create CLAUDE.md with ER diagram (tables + RLS policies), auth flow diagram (signup → trigger → is_active gate → freelancer redirect → feature check), routing tree. Include secrets like Supabase URL (public) vs key (never commit).",
+      "Accessibility: Add aria-labels to sidebar menu items, test keyboard navigation (Tab through menu). Ensure ProtectedRoute loading + error states have role='status' announcements.",
+      "Mobile-first sidebar: Current AppLayout removes sidebar on mobile — consider hamburger menu instead. SidebarProvider has mobile support built-in, just need to expose trigger button on mobile.",
+      "Rate limiting: Add per-user rate limiting to RLS policies or Supabase Edge Functions. Prevent abuse of permission/config lookups. Monitor token refresh frequency.",
+      "Caching strategy: Don't refetch usePermissions on every token refresh. Cache for 5min, only refetch if explicit user action (role change detected via admin UI, config update detected via realtime).",
+      "Dev productivity: Set up .env.local with VITE_SUPABASE_URL + VITE_SUPABASE_KEY. Add pre-commit hook to prevent commits with hardcoded keys. Consider Vercel/Netlify env var sync."
+    ]
+  },
+  {
+    "subsystem": "Supabase Data Model for monti.pro",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20251105065433_33daeb17-e4f4-4711-8b11-c3c41c553adf.sql",
+        "role": "Core user/auth schema: profiles, user_roles, app_role ENUM (administrator, mitarbeiter)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260220125330_884bcb13-3e79-47c9-9217-da43d3696bb4.sql",
+        "role": "Core invoices schema: invoices, invoice_items, number generation function"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260304152147_1bc1ff6d-babe-493b-ab2b-b4df13354f7d.sql",
+        "role": "Customers table with user_id scoping, RLS policies"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260407100000_sprint1_colors_contacts_numbers.sql",
+        "role": "number_ranges table and generic next_document_number() function with format patterns"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260502100000_next_document_number_lock.sql",
+        "role": "Critical: number generation with SELECT...FOR UPDATE row locks to prevent race conditions"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20251115092510_a5ef88ab-4ae7-43e8-a018-f3c0b36757da.sql",
+        "role": "Employees table with full personnel data and RLS policies"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260224162917_76e7a83b-134a-4d83-b798-95bd928a03a0.sql",
+        "role": "Time management: leave_balances, leave_requests, time_accounts, time_account_transactions"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260120133935_f075d64a-d30b-4898-ab47-e1db0b7f499d.sql",
+        "role": "Disturbances (Störungen/Service calls) with materials, RLS scoped to user_id"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260412100000_role_permissions.sql",
+        "role": "Role hierarchy (administrator, vorarbeiter, mitarbeiter) and feature-level permissions matrix"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260416900000_purchase_invoices.sql",
+        "role": "Purchase invoices (Eingangsrechnungen) for vendor/supplier tracking"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260416400000_plantafel_redesign.sql",
+        "role": "Plantafel (Gantt board): teams, board_projects, einsaetze (assignments)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260408200000_sprint3_bautagesbericht.sql",
+        "role": "Construction daily reports (Bautagesberichte) with workers and photos"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260601200000_email_log_and_templates.sql",
+        "role": "Email infrastructure: email_log (audit), email_templates (editable), Resend integration"
+      }
+    ],
+    "dataModel": [
+      "MULTI-TENANT SCOPING: user_id (single-user) NOT multi-org. Each user owns their own customers, invoices, projects, time entries, disturbances. No organization_id column. RLS policy pattern: WHERE user_id = auth.uid() OR has_role(auth.uid(), 'administrator')",
+      "AUTH LAYER: profiles(id UUID FK auth.users, vorname, nachname) + user_roles(user_id, role ENUM) + user_role_overrides (for testing). app_role ENUM: 'administrator', 'vorarbeiter', 'mitarbeiter'. has_role() function for checking roles. First user auto-promoted to admin.",
+      "CUSTOMERS (Multi-field): id, user_id, name, kundennummer (auto-assigned via trigger), anrede, titel, vorname, nachname, uid_nummer (VAT), adresse, plz, ort, land, email, telefon, kundentyp (geschaeftskunde/privat), firmenname, branche, website, rechnungs_adresse, rechnungs_plz/ort/land, zahlungsbedingungen, skonto_prozent, skonto_tage, nettofrist, farbe_bg/farbe_text. RLS: user_id = auth.uid() OR admin.",
+      "CUSTOMER_CONTACTS: id, customer_id FK, anrede, titel, vorname, nachname, position, email, telefon, telefon2, ist_hauptkontakt, notizen. RLS: all authenticated read, authenticated insert/update/delete, admin override.",
+      "PROJECTS: id, name, beschreibung, adresse, status TEXT (foreign key to project_statuses), customer_id FK (optional), projektart, prioritaet, geplanter_start DATE, geplantes_ende DATE, budget NUMERIC, auftragsvolumen NUMERIC, bauleiter_id FK employees, ort. NO user_id column — accessible to all authenticated users.",
+      "PROJECT_STATUSES (global, not per-user): name UNIQUE, farbe_bg, farbe_text, sort_order, is_default. Seeded: Anfrage, Angebot, Auftrag, In Arbeit (default), Pause, Abnahme, Abgeschlossen.",
+      "INVOICES & OFFERS: invoices(id, user_id, project_id FK, typ ENUM 'rechnung'|'angebot', nummer UNIQUE, laufnummer INT, jahr INT, status ENUM 'entwurf'|'gesendet'|'bezahlt'|'teilbezahlt'|'storniert'|'abgelehnt'|'angenommen'|'verrechnet', kunde_name, kunde_adresse, kunde_plz/ort/land/email/telefon/uid, datum, faellig_am, leistungsdatum, zahlungsbedingungen, notizen, netto_summe NUMERIC, mwst_satz NUMERIC DEFAULT 20, mwst_betrag, brutto_summe, bezahlt_betrag DEFAULT 0). RLS: user_id = auth.uid() OR admin. invoice_items(id, invoice_id FK, position INT, beschreibung, menge, einheit, einzelpreis, gesamtpreis). RLS: via parent invoice query.",
+      "DOCUMENT NUMBERING: next_document_number(p_typ TEXT, p_jahr INT) SECURITY DEFINER using number_ranges table. Uses SELECT...FOR UPDATE on number_ranges row to serialize concurrent calls. Format pattern: {PREFIX}{YY}{YYYY}{NNN}{N}{SUFFIX}. Auto-assigns kundennummer on customer INSERT via trigger. number_ranges(typ UNIQUE, label, prefix, suffix, format_pattern, start_nummer, aktuelle_nummer, stellen INT, jahr_format). Seeded: rechnung, angebot, kundennummer, regiebericht, bautagesbericht, besprechungsprotokoll, ersttermin.",
+      "INVOICE PAYMENTS: invoice_payments(id, invoice_id FK, betrag NUMERIC, datum DATE, notizen). RLS: all authenticated (USING true).",
+      "INVOICE TEMPLATES: invoice_templates(id, user_id, name, beschreibung, einheit, einzelpreis, kategorie). Also offer_packages(id, user_id, name, beschreibung) + offer_package_items(id, package_id FK, template_id FK, beschreibung, einheit, einzelpreis, default_menge, sort_order).",
+      "DOCUMENTS: documents(id, project_id FK, user_id, typ TEXT 'plan'|'foto'|'lieferschein'|'material', name, file_url, beschreibung). RLS: all authenticated read, user_id = auth.uid() insert/delete OR admin.",
+      "LIEFERSCHEINE (Packing Slips): lieferscheine(id, name, project_id FK, user_id, datum, notizen). RLS: is_active_user(auth.uid()) for most operations. material_entries(id, project_id FK, user_id, material TEXT, menge, notizen, einheit, einzelpreis, typ TEXT 'verbrauch'|..., datum, disturbance_id FK, lieferschein_id FK).",
+      "TIME ENTRIES: time_entries(id, user_id FK, project_id FK, datum DATE, stunden DECIMAL, taetigkeit TEXT, notizen, disturbance_id FK, kfz_id FK, km_start, km_ende). RLS: user_id = auth.uid() for own, admin all. time_entry_workers(id, source_entry_id FK, user_id, target_entry_id FK) — maps who worked on whose entry. time_entry_vehicles(id, time_entry_id FK, vehicle_id FK, modus TEXT 'gefahren'|'start_ende', km_gefahren, km_start, km_ende). Vehicles table(id, bezeichnung, kennzeichen, typ, aktiv BOOLEAN).",
+      "TIME ACCOUNTS: time_accounts(id, user_id UNIQUE FK, balance_hours NUMERIC). time_account_transactions(id, user_id, changed_by FK, change_type TEXT, hours NUMERIC, balance_before, balance_after, reason, reference_id, created_at). RLS: users view/manage own, admins all. Users can also insert/update own for ZA deductions.",
+      "LEAVE MANAGEMENT: leave_balances(id, user_id, year INT UNIQUE per user/year, total_days NUMERIC DEFAULT 25, used_days NUMERIC). leave_requests(id, user_id, start_date, end_date, days NUMERIC, type TEXT DEFAULT 'urlaub', status TEXT 'beantragt'|'genehmigt'|..., notizen, reviewed_by FK, reviewed_at). RLS: users own, admins all.",
+      "EMPLOYEES: employees(id, user_id UNIQUE FK auth.users, vorname, nachname, geburtsdatum, adresse, plz, ort, land, telefon, email, sv_nummer, eintritt_datum, austritt_datum, position, beschaeftigung_art, stundenlohn NUMERIC, iban, bic, bank_name, kleidungsgroesse, schuhgroesse, notizen, nationalitaet, familienstand, fuehrerschein, notfallkontakt_name/telefon/beziehung, abteilung). RLS: admins all, users view own.",
+      "DISTURBANCES (Service Calls): disturbances(id, user_id, datum, start_time TIME, end_time TIME, pause_minutes INT, stunden NUMERIC, kunde_name, kunde_email, kunde_adresse, kunde_telefon, beschreibung, notizen, status TEXT 'offen'|..., pdf_gesendet_am). disturbance_materials(id, disturbance_id FK, user_id, material TEXT, menge, notizen, einheit, einzelpreis). disturbance_workers(id, disturbance_id FK, user_id, is_main BOOLEAN). disturbance_photos(id, disturbance_id FK, user_id, file_path, file_name). RLS: user_id = auth.uid() or admin.",
+      "BAUTAGESBERICHTE (Construction Daily Reports): bautagesberichte(id, nummer, project_id FK, customer_id FK, datum, wetter, temperatur_min/max, ausgefuehrte_arbeiten, besondere_vorkommnisse, arbeitszeit_von/bis, pause_minuten, bauleiter, auftraggeber_vertreter, status, unterschrift_bauleiter/kunde, unterschrift_am, erstellt_von FK). bautagesbericht_workers(id, bautagesbericht_id FK, employee_id FK, name, stunden, taetigkeit). bautagesbericht_photos(id, bautagesbericht_id FK, file_path, file_name, beschreibung, user_id). RLS: all authenticated read/insert/update, admin delete.",
+      "BESPRECHUNGSPROTOKOLLE (Meeting Minutes): besprechungsprotokolle(id, nummer, typ TEXT 'persoenlich'|'telefonisch'|'video', datum, zeit_von/bis, ort, customer_id FK, project_id FK, teilnehmer TEXT, inhalt, vereinbarungen, offene_fragen, protokollant, status, erstellt_von FK). besprechungsprotokoll_massnahmen(id, protokoll_id FK, aufgabe TEXT, verantwortlich, frist DATE, erledigt BOOLEAN, sort_order).",
+      "PURCHASE_INVOICES (Eingangsrechnungen): purchase_invoices(id, created_by FK, project_id FK, lieferant TEXT, rechnungsnummer, rechnungsdatum, faellig_am, bezahlt_am, betrag_netto, betrag_brutto, ust_satz, kategorie TEXT 'material'|'fremdleistung'|..., zahlungsart, status TEXT 'offen'|'bezahlt'|'abgelehnt', pdf_path, mime_type, file_name, notizen). RLS: admin & vorarbeiter only.",
+      "REPORTS (Regieberichte): reports(id, project_id FK, user_id, datum, beschreibung, arbeitszeit DECIMAL, unterschrift_url).",
+      "TEAMS & PLANTAFEL: teams(id, name, sort_order, created_by FK, created_at). team_members(id, team_id FK, user_id FK profiles, sort_order). board_projects(id, project_id FK UNIQUE, board_color TEXT, color_mode TEXT 'status'|'custom', sort_order). einsaetze (Assignments)(id, user_id FK, project_id FK, name, adresse, beschreibung, start_date, end_date, ganztaegig BOOLEAN, start_time, end_time, google_event_id). RLS: admin & vorarbeiter manage, users read own.",
+      "CONFIG & PERMISSIONS: admin_config_options(id, kategorie TEXT, wert TEXT, label TEXT, sort_order, is_active, farbe). role_permissions(id, role TEXT, feature TEXT, can_view, can_edit, UNIQUE role+feature). Categories: wetter, projektart, prioritaet, taetigkeit, firma_intern, firma_extern, besprechungstyp, familienstand.",
+      "APP SETTINGS: app_settings(key TEXT PRIMARY KEY, value TEXT, updated_at). Seeded: disturbance_report_email, email_default_reply_to, invoice_* settings (prefix, format, stellen).",
+      "AUDIT & LOGGING: audit_log(id, user_id, action TEXT, entity_type TEXT, entity_id TEXT, old_values JSONB, new_values JSONB, metadata JSONB, created_at). RLS: admin read only, users insert own. email_log(id, invoice_id FK, to_address, cc_addresses[], reply_to, subject, body_html, body_text, attachment_filename, provider TEXT 'resend', provider_message_id, status TEXT 'queued'|'sent'|'failed'|'bounced', error_message, sent_by FK, sent_at). RLS: admin/vorarbeiter all, users own. email_templates(id, typ UNIQUE, subject, body_html, updated_at, updated_by FK). RLS: all read, admin write.",
+      "CONTACT_HISTORY: id, customer_id FK, project_id FK, typ TEXT 'notiz'|..., betreff, beschreibung, datum, dauer_minuten, kontaktperson, erstellt_von FK. RLS: all authenticated read/insert, admin/owner update/delete."
+    ],
+    "reusablePatterns": [
+      "SECURITY DEFINER + ROW LOCK: next_document_number(p_typ TEXT, p_jahr INT) uses SELECT...FOR UPDATE to serialize concurrent number generation across all document types. Re-usable for any auto-increment scenario preventing duplicate numbers.",
+      "TRIGGER-BASED AUTO-NUMBERING: assign_kundennummer_before_insert() trigger on customers automatically assigns next_document_number('kundennummer') before insert if not provided. Pattern applicable to all document types (invoices via client logic, but could be DB-side).",
+      "ROLE-BASED RLS PATTERN: has_role(user_id UUID, role app_role) SECURITY DEFINER function checks user_roles table. All policies use: USING (user_id = auth.uid() OR has_role(auth.uid(), 'administrator')) for common read access. Vorarbeiter added as intermediate level with feature-level permissions from role_permissions matrix.",
+      "PARENT-CHILD RLS: invoice_items RLS checks parent invoice: EXISTS (SELECT 1 FROM invoices WHERE id = invoice_items.invoice_id AND (user_id = auth.uid() OR admin)). Replicable for: bautagesbericht_workers, bautagesbericht_photos, besprechungsprotokoll_massnahmen, time_entry_vehicles.",
+      "TIMESTAMP AUTOMATION: update_updated_at_column() trigger + touch_updated_at() function on BEFORE UPDATE sets updated_at = now(). Applied to all versioned tables.",
+      "FEATURE PERMISSION MATRIX: role_permissions(role, feature, can_view, can_edit) allows feature-level control without modifying RLS policies. Features: zeiterfassung, projekte, meine_stunden, regieberichte, rechnungen, kalender, plantafel, bautagesberichte, ersttermine, protokolle, kunden, materialien, admin, stundenauswertung.",
+      "AUTH-WIDE RLS: Some tables (project_statuses, vehicles, admin_config_options, email_templates) use USING (auth.role() = 'authenticated') for read-all authenticated, admin-only write. Pattern for read-mostly reference data.",
+      "OWNER + ADMIN PATTERN: Disturbances, time_entries follow: USING (user_id = auth.uid() OR has_role(auth.uid(), 'administrator')) for all DML. Clean bifurcation.",
+      "FORMAT-PATTERN NUMBER GENERATION: number_ranges.format_pattern '{PREFIX}{YY}{NNN}' allows flexible numbering (e.g., RE-26-001 vs AN26001). Parsed in next_document_number() via string REPLACE.",
+      "RESEND EMAIL INTEGRATION: email_log tracks all sends with status='queued'|'sent'|'failed'|'bounced', provider_message_id for webhooks. email_templates per document type with placeholder support {{kunde_name}}, {{dokument_nr}}, {{betrag}}. Pattern for email audit trail."
+    ],
+    "pitfalls": [
+      "NO ORGANIZATION MULTI-TENANCY: Entire app is single-user-scoped via user_id. All customers/invoices/projects belong to ONE user. No organization_id, no cross-user visibility by design. If adding team/org sharing later, massive RLS refactor needed (add org_id to all tables, change RLS from user_id to org_membership join).",
+      "LOOSE RLS ON PUBLIC READ TABLES: project_statuses, admin_config_options, vehicles, teams, board_projects, einsaetze use USING (auth.role() = 'authenticated') — ANY authenticated user can read all. No per-project/per-team scoping. If secrets/sensitive config appear, will leak across users.",
+      "INVOICE_PAYMENTS RLS ISSUE: invoice_payments has USING (true) WITH CHECK (true) — ALLOWS ALL AUTHENTICATED USERS TO READ/WRITE ALL PAYMENTS regardless of invoice ownership. Critical bug: user A can mark user B's invoices paid. Should be: EXISTS (SELECT 1 FROM invoices WHERE id = invoice_id AND user_id = auth.uid() OR admin).",
+      "EMAIL_LOG & EMAIL_TEMPLATES READ-ALL: email_log_select_all_auth allows any authenticated user to read entire email audit log for other users' invoices. Should restrict to invoice.user_id or admin. email_templates read-all also OK but broadcast-able.",
+      "CONTACT_HISTORY RLS LOOSE: contact_history has USING (auth.role() = 'authenticated') for read/insert/update — no customer ownership check. Any user can see/add to any customer's contact history. Should join to customers(user_id).",
+      "DOCUMENTS NO CUSTOMER SCOPING: documents(id, project_id FK, user_id) — only checks user_id, not project ownership. If projects shared cross-user (plantafel), documents leak. Currently OK because projects accessible to all authenticated but not scoped per project membership.",
+      "BAUTAGESBERICHTE TIMESTAMP: unterschrift_am TIMESTAMPTZ recorded but no automatic signature validation. Could allow backdating reports.",
+      "MATERIAL_ENTRIES DISTURBANCE_ID ORPHANING: material_entries.disturbance_id FK ON DELETE SET NULL — if disturbance deleted, material entries become orphaned (orphan_cleanup migration attempted fix on 2026-05-09 for employees, but same issue could occur here).",
+      "NUMBER_RANGES COUNTER SYNC: number_ranges.aktuelle_nummer must stay in sync with actual max invoice/document numbers. Migration 20260502000000 syncs kundennummer post-facto. If clients generate numbers outside DB (old code path), counter falls behind → duplicates. SELECT...FOR UPDATE lock helps but doesn't prevent client-side generation.",
+      "RACE CONDITION ON CUSTOMER INSERT TRIGGER: customers_assign_kundennummer trigger calls next_document_number() which uses SELECT...FOR UPDATE. If two customers insert simultaneously, lock serializes them — OK. But if old client code pre-generates a kundennummer, it bypasses trigger → duplicate if number_ranges counter is stale.",
+      "MISSING RLS ON AUDIT_LOG INSERTS: audit_log INSERT policy allows users to insert only WITH CHECK (user_id = auth.uid()) — but if a service role / webhook logs actions for OTHER users (e.g., admin approves leave), audit record won't be insertable (policy check fails). Workaround: service_role can bypass RLS, but need explicit grants/triggers.",
+      "INVOICE TEMPLATE COMPONENTS TABLE: invoice_template_components mentioned in migrations but never fully documented. May have schema drift.",
+      "MISSING UNIQUE CONSTRAINTS: invoices.nummer has UNIQUE but no compound key on (user_id, nummer). Two users can have same nummer (OK, numbers are per-user), but if consolidating later, schema issue. Better: UNIQUE (user_id, nummer).",
+      "PROJECT PHOTOS → DOCUMENTS MIGRATION: Migration 20260429000000_backfill_project_photos_to_documents.sql backfills from one table to another but old columns may still exist, causing confusion.",
+      "ESTTERMIN INTERESSENT (ERSTTERMIN) SCHEMA VAGUE: ersttermin_interessent, ersttermin_interessent_photos, ersttermin_projekt tables created but never cross-referenced with customers/projects clearly. Orphan risk.",
+      "CALENDAR INTEGRATION UNAUTHENTICATED: calendar_integrations table exists but RLS not visible in provided migrations. May be public or broken.",
+      "WHATSAPP MESSAGES / CALENDAR EVENTS: Tables exist (whatsapp_messages, calendar_events) with minimal RLS enforcement shown in migrations. Likely incomplete integrations.",
+      "MAHNUNG_HISTORY TABLE: Created but never seeded or used. Ghost table risk.",
+      "STORAGE BUCKET RLS: photo buckets (disturbance-photos, bautagesbericht-photos, project-photos) often allow PUBLIC or AUTHENTICATED-WIDE reads. If customer-confidential photos, will leak.",
+      "OLD TABLES NOT DROPPED: worker_assignments_legacy, ersttermin_interessent tables remain after new einsaetze design. Data migration incomplete; legacy queries could still hit old tables.",
+      "AUTHORIZATION CHECK MISSING ON VORLARBEITER TEAMS: vorarbeiter can manage teams/einsaetze/board_projects with USING (has_role(...)) but no ownership check. Vorarbeiter A can modify teams/einsatz for Vorarbeiter B.",
+      "INVOICE STATUS NOT ENFORCED DOWNSTREAM: invoices.status is denormalized cache, recalculated via SUM(invoice_payments). If payments deleted, status not auto-updated. No trigger maintains this invariant.",
+      "LIEFERSCHEIN RLS FUNCTION DEPENDENCY: lieferscheine RLS uses is_active_user(auth.uid()) function — this function never defined in provided migrations. RLS will fail at runtime.",
+      "INVOICE PAYMENTS BETRAG UNCHECKED: betrag can be negative (credit) but no constraint prevents overpayment beyond brutto_summe. No aggregate check or trigger enforces SUM(betrag) <= brutto_summe."
+    ],
+    "recommendations": [
+      "FOR HERO REBUILD — ESTABLISH ORG MULTI-TENANCY EARLY: Scope ALL tables to organization_id (UUID FK), not user_id. Add org_members(org_id, user_id, role). RLS: org_id IN (SELECT org_id FROM org_members WHERE user_id = auth.uid()). This prevents massive refactor later when feature-sharing lands.",
+      "SEPARATE QUERY & WRITE MODELS: Keep audit_log/email_log/contact_history as append-only tables in Postgres, but replicate denormalized views to read-replica or data warehouse for analytics. Current single Postgres instance will slow under high-volume logging.",
+      "TIGHTEN RLS ON ALL PUBLIC READ TABLES: Switch project_statuses, admin_config_options, vehicles, etc. from USING (auth.role() = 'authenticated') to USING (auth.uid() IS NOT NULL) at minimum, or join to org membership. Prevents leakage if secrets/sensitive config added later.",
+      "FIX INVOICE_PAYMENTS RLS IMMEDIATELY: Change USING (true) to USING (EXISTS (SELECT 1 FROM invoices WHERE id = invoice_id AND (user_id = auth.uid() OR admin))). This is critical security issue.",
+      "ENFORCE INVOICE AMOUNT INVARIANTS: Add trigger on invoice_payments INSERT/UPDATE to check SUM(betrag) <= invoices.brutto_summe OR invoices.status IN ('gutschrift', 'storniert'). Prevent overpayment.",
+      "DENORMALIZE & CACHE INVOICE TOTALS VIA TRIGGER: Instead of updating netto_summe/brutto_summe manually in client, add trigger on invoice_items INSERT/UPDATE/DELETE to auto-recalculate and sync invoices.netto_summe, mwst_betrag, brutto_summe. Prevents stale data.",
+      "IMPLEMENT DOCUMENT STATE MACHINE: invoice.status transitions should be enforced: entwurf → gesendet → bezahlt (or storniert). No reverse transitions. Add CHECK constraint or trigger.",
+      "CREATE UNIQUE CONSTRAINTS ON NUMBER FIELDS: invoices UNIQUE (user_id, typ, jahr, laufnummer) or UNIQUE (user_id, nummer). Prevents duplicate numbering per user.",
+      "IMPLEMENT SOFT DELETE (is_deleted BOOLEAN) FOR AUDIT**: Instead of hard DELETE on customers/invoices, add is_deleted flag + deletion trigger to audit_log. Preserves references & audit trail.",
+      "ADD ROW-LEVEL ENCRYPTION FOR SENSITIVE COLUMNS: iban, bic, sv_nummer, geburtsdatum in employees should be encrypted at rest (use pgcrypto or external key management). Single-user access doesn't protect against DB breach.",
+      "IMPLEMENT EXPLICIT SCHEMA VERSIONING: Add a schema_version table(version INT, applied_at TIMESTAMP) and number migrations sequentially. Current mixed-format UUIDs/timestamps makes tracing schema state hard.",
+      "CONSOLIDATE ROLE CHECKING LOGIC: Instead of scattering has_role() calls in RLS policies, create a composite function like get_user_effective_role(user_id) that resolves user_role_overrides, then base ALL policies on it. Centralizes testing.",
+      "IMPLEMENT EMAIL RETRY QUEUE: email_log.status='queued' jobs should auto-retry via pg_cron or external queue (Bull, SQS). Currently just inserted and assumes external webhook/API picks them up.",
+      "ADD DOCUMENT SIGNING / HASH VERIFICATION: Store SHA256 hash of invoice PDF, sign with private key. Prevents tampering post-generation. email_log can store signature.",
+      "MIGRATE DOCUMENTS TO OBJECT STORAGE VERSIONING: Instead of file_url TEXT, use versioned S3/GCS references (bucket/key@version). Allows audit trail of document changes.",
+      "IMPLEMENT BALANCE SHEET / ACCOUNTING QUERIES AS MATERIALIZED VIEWS: Create mv_customer_balance(customer_id, outstanding_balance, paid_balance) refreshed nightly. Prevents expensive runtime aggregations.",
+      "ADD INDEXES ON FOREIGN KEYS & COMMON FILTERS: CREATE INDEX idx_invoices_project_id, idx_invoices_status, idx_time_entries_project_id. Current migrations missing some.",
+      "STANDARDIZE TIMESTAMP COLUMNS: Some tables use TIMESTAMPTZ DEFAULT now(), others TIMESTAMP WITHOUT TZ. Pick one (recommend WITH TIME ZONE). Add created_by user tracking to all audit-relevant tables.",
+      "IMPLEMENT ACCOUNT LOCKOUT / RATE LIMITING**: Add login_attempts(user_id, attempt_count, locked_until) table. Enforce at app level (Supabase auth doesn't have built-in rate limiting).",
+      "CREATE ADMIN DASHBOARD QUERY FUNCTIONS**: Wrap analytics (revenue by month, employee hours, project status) in stored procedures returning JSON. Client calls FUNCTION get_dashboard_metrics(p_user_id) — centralizes complex logic.",
+      "DOCUMENT RLS IMPLICATIONS IN CODE COMMENTS**: Add DO NOT REMOVE THIS POLICY comments on critical policies (invoice_payments, customer_contacts). Prevents accidental deletion.",
+      "IMPLEMENT INTEGRATION AUDIT TABLE**: Log every external API call (email send, Google Calendar sync, N8N PDF generation). Track request/response hashes for debugging.",
+      "ADD QUARTERLY SCHEMA RESET / DENORMALIZATION AUDIT**: Schedule review of denormalized columns (invoices.netto_summe, invoices.bezahlt_betrag) vs. source-of-truth queries. Resync if drift detected."
+    ]
+  },
+  {
+    "subsystem": "Invoice & Offer (Rechnung/Angebot) Core System",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/InvoiceDetail.tsx",
+        "role": "Main invoice/offer creation & editing page. Handles form state, calculations, save/load logic, status transitions, position management, document genealogy (parent/child relationships), payment tracking, and specialized workflows (Anzahlung, Schlussrechnung, Gutschrift)."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/Invoices.tsx",
+        "role": "Invoice/offer list view. Filtering by type (Rechnung/Angebot/Storno), status, subtype (AR/SR/AB). Payment dialogs, duplicate protection, status change workflows (teilbezahlt/bezahlt), PDF export, mahnung (reminder) handling."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260424900000_unified_invoice_numbering.sql",
+        "role": "Document number generation. Unified numbering for Rechnung/Anzahlungsrechnung/Schlussrechnung (all use 'rechnung' nummernkreis). Format: {PREFIX}{YY}{NNN}. Prevents gaps across invoice types."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260220125330_884bcb13-3e79-47c9-9217-da43d3696bb4.sql",
+        "role": "Base invoice schema: invoices table (kunde_*, datum, faellig_am, status, netto/mwst/brutto caches) and invoice_items (position, menge, einheit, einzelpreis, gesamtpreis)."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260422200000_documents_expansion.sql",
+        "role": "Expanded document types (Angebot, AB, Rechnung, AR, SR, Lieferschein, Gutschrift). Added parent_invoice_id (genealogy), anzahlung_prozent/betrag, document_texts table with customizable templates."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260511000000_invoice_gutschrift_verrechnung.sql",
+        "role": "Gutschrift (credit note) verrechnung: added verrechnet_mit_invoice_id, verrechnet_am for tracking credit application against invoices."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/documentTypes.ts",
+        "role": "Central config for all 7 document types (isInvoiceLike, isAngebotLike, hidePrices, showPaymentSection, showLeistungsdatum). Determines PDF/UI rendering behavior."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/invoiceHtml.ts",
+        "role": "HTML/PDF table rendering for invoices. Formats totals (netto, mwst, brutto), handles mwst_exempt items, calculates running totals, EPC QR code generation for bank transfers."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/pdfGenerator.ts",
+        "role": "jsPDF-based PDF generation. Logo/letterhead, company info, recipient address, position table with line totals, payment section (IBAN/BIC/Skonto/Fälligkeit), Storno certificates."
+      }
+    ],
+    "reusablePatterns": [
+      "Calculation formula (lines 1063-1072, InvoiceDetail.tsx): r2(v) rounds to 2 decimals; exemptBrutto = items with mwst_exempt=true; positionenNetto = sum of (menge × einzelpreis × (1 - rabatt%)); rabattWert = sum-level discount; nettoSumme = positionenNetto - rabattWert - nachlass; mwstBetrag = nettoSumme × (mwst_satz/100); bruttoSumme = nettoSumme + mwstBetrag + exemptBrutto. This pattern is robust for 20% & 19% tax rates (Austria) and handles mixed-tax scenarios (exempt items).",
+      "Document numbering via next_document_number(typ, jahr) RPC: returns formatted string like 'RE26001' (Rechnung), 'AN26001' (Angebot), 'AR26001' (Anzahlung). Typ 'anzahlungsrechnung'/'schlussrechnung' map to 'rechnung' nummernkreis to avoid fragmentation. Counter incremented atomically in number_ranges table.",
+      "Status machine for Rechnungen: entwurf → offen → (teilbezahlt/bezahlt) → storniert (terminal). Backward transitions from teilbezahlt/bezahlt blocked. Storniert terminal except rollback of verrechnung.",
+      "Status machine for Angebote: entwurf → offen → angenommen → verrechnet (when invoice created from offer) OR abgelehnt → (no further state changes). Verrechnet = 'invoice created from this offer'.",
+      "Status machine for Auftragsbestätigung (AB): offen → verrechnet (when invoice created). Can be storniert if no child invoices exist. AB status differs from Angebot: AB is 'accepted order' (deterministic), not 'pending response'.",
+      "Position rabatt per-item (rabatt_prozent on invoice_items): applied per line = einzelpreis × (1 - rabatt_prozent/100). Separate from sum-level rabatt_betrag on invoices table. Both applied in total discount calculation.",
+      "Nachlass (allowance): separate from rabatt, stored on invoices.nachlass_betrag + nachlass_bezeichnung. Subtracted after rabatt in net calculation (nettoSumme = positionenNetto - rabattWert - nachlassWert).",
+      "Skonto (early-payment discount): stored as skonto_prozent, skonto_tage on invoices. Rendered in PDF payment section but NOT deducted from brutto_summe automatically — user applies manually if paid early.",
+      "mwst_exempt flag on invoice_items: items marked exempt (e.g. Anzahlungs-Abzüge in Schlussrechnung) are brutto-only, NOT multiplied by mwst_satz. Exempt total added after netto+mwst calculation.",
+      "Anzahlungsrechnung workflow: URL ?from_doc=<offer_id>&typ=anzahlungsrechnung&anzahlung_prozent=30 creates single-line invoice with calculated betrag. Line marked mwst_exempt=false. parent_invoice_id set to offer. Status='offen'.",
+      "Schlussrechnung workflow: URL ?from_doc=<offer_id>&typ=schlussrechnung&abzug_ids=<ar_id> loads all positions from offer + appends negative-brutto lines for each Anzahlung. Negative lines marked mwst_exempt=true (already taxed in Anzahlung).",
+      "Gutschrift (credit note): typ='gutschrift', isInvoiceLike=true but showPaymentSection=false (no IBAN). Can be standalone (offen) or linked to invoice via verrechnet_mit_invoice_id. Verrechnung logic: applies gutschrift brutto to target invoice's bezahlt_betrag, capped at invoice's outstanding amount.",
+      "Document genealogy: parent_invoice_id tracks Angebot→AB→Anzahlung+Schlussrechnung chain. loadInvoice() walks up 5 hops to find root (Angebot/AB), then loads all direct children for chain visualization.",
+      "Payment tracking: invoice_payments table (betrag, datum, notizen per payment). bezahlt_betrag accumulated on invoices row. Status auto-calculated: bezahlt_betrag >= brutto → 'bezahlt', > 0 → 'teilbezahlt', else 'offen'. Persists storniert status.",
+      "Reverse Charge (§19 UStG): reverse_charge boolean + kunde_uid required. PDF renderer shows 'reverse charge applies' instead of tax line. Validation: customer UID + company UID both required.",
+      "Mahnung (reminders): mahnstufe counter (0-3) on invoices. Increments when user sends 'Mahnung'-email. At stufe ≥ 3, system warns 'no further automations — escalate manually'. Mahnungs-PDF generated with stufe marker.",
+      "Gutschrift Verrechnung Rollback: When stornizing a verrechnet Gutschrift, code fetches target invoice, subtracts gutschrift brutto from bezahlt_betrag, recalculates status (offen/teilbezahlt/bezahlt). Preserves storniert if target already storniert.",
+      "Customer auto-creation on save: if kunde_name + (plz optional) match existing customer, link to that customer_id. Otherwise create new. Prevents duplicate customers; invoice always stores own snapshot of kunde_* fields.",
+      "Invoice lock on save: isLocked = !isNew && invoiceId && typ='rechnung' prevents editing once saved. Angebote remain editable even after save. Kundendaten never editable once locked.",
+      "Skonto/Fälligkeit auto-sync: if zahlungsbedingungen = '14 Tage', faellig_am auto-calculated as datum + 14 days. 'individuell' allows manual override. Recalcs whenever datum or zahlungsbedingungen changes.",
+      "PDF generation: buildInvoicePdfBlob() loads bank data, logo, layout settings, generates HTML via invoiceHtml, renders via jsPDF. Includes EPC QR code (GiroCode) if bank data complete & brutto > 0.",
+      "Parent invoice reference in PDF: if parent_invoice_id set, Anzahlungs-/Schlussrechnung PDF includes 'Bezug: Rechnung <parent_nr> vom <parent_datum>' block. Extracts nummer + datum async in buildInvoiceForPdf()."
+    ],
+    "pitfalls": [
+      "Floating-point rounding: all monetary fields use NUMERIC(12,2) in DB; frontend must round via r2(v) = Math.round(v * 100) / 100 after every arithmetic operation. Without this, 0.01€ discrepancies compound (mwst_betrag = nettoSumme × 0.20 may produce 18.999999999).",
+      "Rabatt at position level (rabatt_prozent per item) vs. sum-level (rabatt_betrag on invoice): both are independent. Total discount = rabattWert (from sum % or sum betrag) − nachlassWert. If both sum-% and position-% applied, sums multiply (item gets 10% off, then invoice gets 5% off before MwSt). Can confuse users.",
+      "Nachlass separate column added in 20260601100000 migration: defensive code checks for schema cache miss, falls back to insert-without-nachlass if column missing. Old DB versions won't persist nachlass but don't crash.",
+      "mwst_exempt items (Anzahlungs-Abzüge in Schlussrechnung): marked with mwst_exempt=true, stored as negative gesamtpreis. Excluded from MwSt calculation (added post-tax to brutto). Critical: if set incorrectly, tax double-applies or disappears.",
+      "Status constraint evolution: original CHECK (status IN ('entwurf','gesendet','bezahlt','storniert','abgelehnt','angenommen')) evolved to include 'offen','teilbezahlt','verrechnet' in 20260323190000. UI filter/transition logic must match DB constraint, or insert fails.",
+      "Parent invoice normalization: AR/SR can have parent_invoice_id pointing to another AR. handleSave() walks up parent chain to find root Angebot/AB (max 5 hops), corrects parent_invoice_id before saving. If chain corrupted, normalization may fail silently.",
+      "Anzahlung percentage vs. absolute: anzahlung_prozent and anzahlung_betrag both nullable. loadFromSourceDoc() accepts either; if both set, betrag takes precedence in URL params. UI must enforce mutual exclusivity or save can produce confusing data.",
+      "Duplicate invoice numbers: number_ranges.aktuelle_nummer incremented atomically via RPC. Race condition possible if two users call next_document_number() simultaneously — Postgres ACID ensures no duplicates but one call may be slower. No explicit uniqueness constraint beyond DB unique(nummer), which is sufficient.",
+      "Gutschrift verrechnung: setting verrechnet_status='verrechnet' + verrechnet_mit_invoice_id requires manual UI action (openVerrechnungDialog → handleVerrechnungSave). If user cancels dialog, gutschrift remains 'offen' even if should be 'verrechnet'. No auto-transition.",
+      "Status lock on storniert: once storniert, no status changes allowed except rollback (which storniert → back to previous status). This is enforced in Invoices.tsx (handleStatusChange blocks backward transitions). No database constraint prevents it — relies on UI logic.",
+      "Bezahlt-Betrag accumulation: bezahlt_betrag is naive sum of all invoice_payments.betrag. No validation that total ≤ brutto_summe at DB level. addPayment() enforces via toast (M-6: rejects overpayment). If payment inserted directly via DB, bezahlt_betrag could exceed brutto without warning.",
+      "Rechnungs-artigen Typen share nummernkreis: Rechnung/Anzahlungsrechnung/Schlussrechnung all pull from 'rechnung' nummernkreis (next_document_number() maps AR/SR to 'rechnung'). User may expect separate counters; numbers can interleave (RE26001, AR26002, SR26003).",
+      "Storno not reversible: once storniert, mark as terminal. No 'un-storno' action. If user mistakenly stornos, must manually reset status in DB (admin privilege). Toast warning says 'no backing out', but not enforced in code.",
+      "Gutschrift rollback on cancel: if verrechnet Gutschrift is storniert, code tries to roll back bezahlt_betrag on target invoice. If target invoice deleted or ID invalid, rollback logs error but storno proceeds. Possible orphaned bezahlt_betrag state on partial rollback failure.",
+      "PDF layout settings: stored as JSON in app_settings.invoice_layout, parsed once on page load. Changes to layout take effect only on page refresh, not instantly on PDF preview. User may generate PDF, tweak layout, expect preview to change — but old layout still used.",
+      "Lieferschein prices hidden: hidePrices=true for typ='lieferschein'. Invoice_items have einzelpreis/gesamtpreis but PDF renders only menge+einheit. UI still allows editing prices. Confusing: prices exist but invisible. If LS converted to Rechnung, prices suddenly appear.",
+      "Angebot to Rechnung conversion: from_doc_id in URL bypasses normal flow. If offer is storniert, code does NOT check and allows conversion. Possible to invoice a cancelled offer. Validation missing.",
+      "Leistungsdatum: usually = datum. leistungsdatum_bis nullable (added 20260503100000). If leistungsdatum_bis empty, PDF renders single date. No validation that leistungsdatum_bis >= leistungsdatum in form or DB.",
+      "allgemeine_angaben (performance notes): toggle on/off, fields still saved. If user toggles off, PDF hides the table but data persists. Toggling back on restores old data. Can confuse users who expect clear button to actually clear.",
+      "Parent invoice lookup async race: buildInvoiceForPdf() async-loads parent invoice nummer+datum. If parent deleted between form save and PDF build, lookup returns null, PDF renders empty reference. No error, just silent fallback to current document date.",
+      "Reverse Charge MwSt: reverse_charge flag set, MwSt line hides in PDF, but netto_summe + mwst_betrag still calculated and saved. Frontend UI doesn't zero mwst_satz. If user disables reverse_charge later, MwSt reappears. Inconsistent state possible.",
+      "Ansprechpartner (contact person): employee_id snapshot in ansprechpartner_name/telefon/email. If employee record updated, invoice snapshot does NOT sync. Snapshot stale by design (audit trail). But UI doesn't warn user snapshot is stale.",
+      "Customer master sync: keine automatische Sync von customers.skonto_prozent/nettofrist zu invoices.skonto_prozent/zahlungsbedingungen on load. User must manually enter or click 'load customer defaults'. Easy to forget.",
+      "Deletion cascade: invoice_items ON DELETE CASCADE. If invoice deleted, all positions auto-deleted. But PDF blobs in storage (invoice-pdfs/{user_id}/{invoice_id}/) are NOT auto-cleaned. Orphaned storage files accumulate.",
+      "Archiviert toggle: archiviert boolean on invoices. No UI action prevents editing archived invoice. Can mark as archived, edit, mark unarchived. Filtering works (showArchive toggle in list), but no lock."
+    ],
+    "dataModel": [
+      "invoices (main table): id (UUID), user_id (FK), project_id (FK, nullable), typ (enum: angebot/auftragsbestaetigung/rechnung/anzahlungsrechnung/schlussrechnung/lieferschein/gutschrift), nummer (TEXT UNIQUE auto-assigned), laufnummer, jahr, status (enum: entwurf/offen/teilbezahlt/bezahlt/angenommen/abgelehnt/storniert/verrechnet), kunde_* (snapshot: name/adresse/plz/ort/land/email/telefon/uid/anrede/titel), datum, faellig_am, leistungsdatum, leistungsdatum_bis, zahlungsbedingungen, notizen, betreff, netto_summe (NUMERIC 12,2 cache), mwst_satz (NUMERIC 5,2), mwst_betrag (NUMERIC 12,2 cache), brutto_summe (NUMERIC 12,2 cache), bezahlt_betrag (NUMERIC 12,2), gueltig_bis, rabatt_prozent, rabatt_betrag, nachlass_betrag, nachlass_bezeichnung, mahnstufe, skonto_prozent, skonto_tage, customer_id (FK, nullable), project_id (FK, nullable), parent_invoice_id (FK self-ref, nullable for genealogy), anzahlung_prozent (NUMERIC 5,2 nullable), anzahlung_betrag (NUMERIC 12,2 nullable), verrechnet_mit_invoice_id (FK self-ref nullable for Gutschrift), verrechnet_am (DATE nullable), reverse_charge (boolean), kundennummer, archiviert (boolean), ansprechpartner_employee_id (FK nullable), ansprechpartner_name/telefon/email (TEXT snapshot), storno_nummer/datum/grund (TEXT/DATE/TEXT for audit), allgemeine_angaben_aktiv (boolean toggle), leistungsbeschreibung/ausfuehrungsort/ausfuehrungs_kw/ausfuehrende_firma/ausfuehrende_firma_freitext, created_at, updated_at. RLS: users see own invoices, admins see all. Index on parent_invoice_id, typ, user_id.",
+      "invoice_items (positions): id (UUID), invoice_id (FK invoices, ON DELETE CASCADE), position (INTEGER 1-n), beschreibung (TEXT), kurztext (TEXT generated from beschreibung if blank), langtext (TEXT), menge (NUMERIC 12,2), einheit (TEXT 'Stk.' default), einzelpreis (NUMERIC 12,2), rabatt_prozent (NUMERIC 5,2 nullable 0-100%), gesamtpreis (NUMERIC 12,2 = menge × einzelpreis × (1 - rabatt%)), produktnummer (TEXT nullable), mwst_exempt (boolean for exempt items like Anzahlungs-Abzüge), set_template_id (UUID nullable ref to invoice_templates for material sets), set_snapshot (JSON snapshot of component breakdown for audit). RLS: via parent invoice. Index on invoice_id, position.",
+      "number_ranges (nummernkreise): typ (TEXT PRIMARY KEY: 'rechnung','angebot','auftragsbestaetigung','lieferschein','anzahlungsrechnung','schlussrechnung','gutschrift','kundennummer'), label, prefix (TEXT), stellen (INT), start_nummer, aktuelle_nummer, jahr_format ('YY'/'YYYY'), format_pattern ('{PREFIX}{YY}{NNN}' template), updated_at. RPC next_document_number(typ, jahr) returns formatted number, increments aktuelle_nummer. Anzahlungsrechnung/Schlussrechnung share 'rechnung' counter.",
+      "invoice_payments (payment log): id (UUID), invoice_id (FK), betrag (NUMERIC 12,2), datum (DATE), notizen (TEXT nullable), created_at. No index; FK on invoice_id. User can add multiple payments; sum of betrag = bezahlt_betrag on invoice (denormalized, maintained in code).",
+      "document_texts (customizable templates): id (UUID), typ (TEXT document type), feld (TEXT: 'intro'/'closing'/'zahlungsbedingungen'/'anzahlung_hinweis'/'danke'), sprache (TEXT 'de'), inhalt (TEXT template with {{placeholders}}), created_at, updated_at. UNIQUE(typ, feld, sprache). RLS admin-only write, all read. Seeded with defaults.",
+      "invoice_templates (positions library): id (UUID), name, beschreibung, einheit, einzelpreis (NUMERIC), kategorie, ist_favorit (boolean), ist_set (boolean for material sets), kurzbezeichnung, langbezeichnung, vk_netto (NUMERIC), ek_netto (NUMERIC), bezugseinheit, aufschlag_prozent. Linked via set_template_id on invoice_items.",
+      "invoice_template_components (material set breakdown): parent_template_id (FK invoice_templates), component_template_id (FK invoice_templates), menge (NUMERIC), sort_order. Snapshot copied to invoice_items.set_snapshot on add-to-invoice (stable history even if template changes later).",
+      "Genealogy Chain: Angebot (root) → parent_invoice_id=null → Auftragsbestätigung (parent_invoice_id=Angebot.id) → Anzahlungsrechnung (parent_invoice_id=Angebot.id) and Schlussrechnung (parent_invoice_id=Angebot.id). When Rechnung/AR/SR saved from offer, offer.status set to 'verrechnet' (one-way). When Gutschrift saved, can link via verrechnet_mit_invoice_id (independent of parent_invoice_id chain).",
+      "RLS (Row-Level Security): users see own invoices (user_id) or admin sees all. invoice_items accessible via parent invoice RLS. Policies use has_role(auth.uid(), 'administrator'::app_role). No customer-level isolation (all invoices visible once authenticated).",
+      "Multi-tenant approach (implicit): user_id on invoices + RLS enforces per-user isolation. No explicit tenant_id; relies on auth.uid(). Projects may span users (project.id has no user_id) but invoices link to project_id (FK, nullable). Invoice access controlled by user_id, not project ownership — potential data leak if multiple users share project but should not see each other's invoices (design gap)."
+    ],
+    "recommendations": [
+      "Implement strict Gutschrift status state machine: add database check constraint to enforce verrechnet ↔ verrechnet_mit_invoice_id: 'status='verrechnet' AND verrechnet_mit_invoice_id IS NOT NULL' OR 'status != 'verrechnet''. Prevents orphaned states.",
+      "Consolidate Tax Calculation: Extract r2() + all mwst/rabatt/netto/brutto logic into a shared /src/lib/invoiceCalculations.ts module exported to both InvoiceDetail.tsx and pdfGenerator.ts. Single source of truth eliminates rounding divergence between PDF preview and saved totals.",
+      "Add Rounding Audit Trail: on save, log all intermediate calculations (positionenNetto, rabattWert, nachlassWert, nettoSumme, mwstBetrag, bruttoSumme) as JSON in invoices table (new audit_calculations column). On reconciliation errors, visible audit log.",
+      "Enforce Bezahlt-Betrag Cap in DB: add CHECK (bezahlt_betrag <= brutto_summe) to invoices table. Prevents overpayment even if payment inserted directly via DB.",
+      "Implement Un-Storno for Entwürfe: allow storniert → back to prior status ONLY if document is entwurf (unsaved). Once sent/offen, no reversals. Reduces 'oops I stornied the wrong one' support requests.",
+      "Auto-sync Customer Attributes: when customer_id linked, on save: fetch customers.skonto_prozent/skonto_tage/nettofrist and populate invoice defaults. Add UI toggle 'use customer defaults' to override. Reduces manual entry.",
+      "Parent Invoice Type Validation: add CHECK constraint that parent_invoice_id.typ IN ('angebot','auftragsbestaetigung') for AR/SR. Blocks corrupt genealogy at DB layer.",
+      "Split Rabatt & Nachlass UI: separate form sections for 'Rabatt (Summe oder %)' and 'Nachlass/Kulanz (Fixbetrag + Beschreibung)'. Clear labels reduce user confusion.",
+      "Implement Soft-Delete for Storno: instead of bezahlt_betrag → 0 on storno, preserve original bezahlt_betrag in new storno_bezahlt_betrag column. Audit trail for reconciliation (actual paid vs. invoiced).",
+      "Add Conflict Detection on Concurrent Edits: use optimistic locking (version counter on invoices). On save: check version didn't increment; if changed, warn user and reload. Prevents silent overwrites in multi-user scenarios.",
+      "Validate Leistungsdatum Range: add CHECK (leistungsdatum_bis IS NULL OR leistungsdatum_bis >= leistungsdatum) to invoices. Prevents retrograde date ranges.",
+      "Archive Lock: set DB trigger to DENY updates on invoices where archiviert=true (except archiviert toggle itself). Prevents sneaky edits after archiving.",
+      "Mahnung Escalation Workflow: after stufe=3, auto-create audit record + email alert to admin. Stufe 4+ blocked in UI. Documents escalation path (legal/collections handoff).",
+      "Gutschrift Standalone vs. Linked UI: radio buttons 'Auszahlung (standalone)' vs. 'Verrechnung (gegen Rechnung)'. Only show verrechnung dialog after save if linked mode chosen. Reduces false 'verrechnet' states.",
+      "Performance: Index on invoices(user_id, status, datum DESC) for list filtering. Add invoice_items(invoice_id, position) composite index for sorted retrieval.",
+      "Reverse Charge Auto-Disable: if kunde_uid empty, set reverse_charge=false (not null). If reverse_charge=true but kunde_uid later blanked, show toast warning: 'Reverse Charge requires customer UID'. Prevent invalid state.",
+      "PDF Versioning: store hash of invoice + items + layout in invoices table (pdf_hash column). On PDF generate, compare hash. If mismatch, warn 'Document modified since last PDF — regenerate'. Prevents stale PDFs.",
+      "Angebot Expiration Logic: if gueltig_bis < today and status='offen', render warning banner 'Offer expired on <date>. Status still changeable but mark as storniert if not accepted.' Auto-suggest storno.",
+      "Bezug-Validation in Schlussrechnung: validate that all Anzahlungsrechnung items (via abzug_ids) total ≤ Angebot netto. If overpaying, toast: 'Total Anzahlungen exceed original offer amount.'",
+      "Customer Isolation Check: add audit query to verify no cross-user invoice access via shared project. If found, document as security gap — consider project-level RLS check.",
+      "Nachlass Beschreibung Validation: wenn nachlass_betrag > 0, require nachlass_beschreibung (NOT NULL CHECK). Audit trail for tax compliance (why discount?).",
+      "Invoice Lock Timestamp: on save, set locked_at timestamp. Prevent edits if locked_at + business_rule(typ) < now(). E.g. Rechnung locked forever; Angebot unlocked 30 days; Lieferschein unlocked 7 days.",
+      "Skonto Enforcement: if skonto_prozent > 0 & skonto_tage > 0, validate in PDF: show 'Zahlbar in {{skonto_tage}} Tagen mit {{skonto_prozent}}% Skonto' in payment section. Highlight in red if paid date exceeded skonto period.",
+      "Ansprechpartner Auto-Refresh: on load, fetch ansprechpartner_employee_id live (not snapshot). Show warning badge if employee inactive since invoice creation. Allows dynamic contact updates.",
+      "Material Set Validation: on add invoice_template (ist_set=true) to invoice, validate set has ≥ 1 component (prevents empty set). If set later emptied, invoice_items row marked as stale (new is_stale flag).",
+      "Bulk Status Change: allow filtering invoices (e.g. offen, datum < 90 days ago) and bulk-transition to 'verrechnet' via button. Useful for archival workflows without individual clicks."
+    ]
+  },
+  {
+    "subsystem": "PDF Document Layout & Rendering System (monti.pro)",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/pdfGenerator.ts",
+        "role": "Client-side PDF generation using jsPDF (A4, DIN 5008 compliant layouts, multi-page support with page breaks)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/InvoicePdfPreview.tsx",
+        "role": "Live PDF preview dialog—loads layout/bank settings from DB, calls pdfGenerator, displays via iframe"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/InvoiceLayoutEditor.tsx",
+        "role": "Admin UI for customizing invoice layout (logo, company info, footer, colors, sender line, closing texts)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/hooks/useInvoiceLayout.ts",
+        "role": "React hook—loads/saves layout settings from app_settings table as JSON blob"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/invoiceLayoutTypes.ts",
+        "role": "TypeScript types + defaults for layout configuration (company, logo, footer, contact, accent color)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/logoLoader.ts",
+        "role": "Loads custom logo from Supabase Storage (logos bucket), trims transparent padding, 5-min in-memory cache"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/SendEmailDialog.tsx",
+        "role": "Email compose UI with editable subject/body (loads from email_templates, applies variable substitution)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/functions/send-document-email/index.ts",
+        "role": "Edge function—validates auth, logs email in email_log table, sends via Resend API with PDF attachment"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/functions/generate-invoice-pdf/index.ts",
+        "role": "Edge function—builds HTML from invoice data + layout, returns base64-encoded HTML (no server-side PDF conversion)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/pdfLetterhead.ts",
+        "role": "Shared letterhead/footer rendering (logo positioning, company info, fold marks per DIN 5008)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/documentTypes.ts",
+        "role": "Central config for all document types (Angebot, Rechnung, Lieferschein, Gutschrift, etc.) with display flags"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/invoiceHtml.ts",
+        "role": "HTML/QR-code generation for invoices; builds structured HTML + EPC QR (GiroCode) for SEPA transfers"
+      }
+    ],
+    "reusablePatterns": [
+      "Client-side jsPDF generation (pdfGenerator.ts) with auto-table plugin—avoids server-side rendering overhead; allows instant preview + print without round-trip. Pattern: set margins, add images (logo with aspect-ratio preservation), render text with font sizing/color, use autoTable for item rows, handle multi-page breaks automatically.",
+      "Layout configuration stored as JSON blob in app_settings table (invoice_layout key). Parsed into TypeScript types with defaults. Pattern: centralize branding (logo, colors, company info, footer) in DB, merge parsed settings with defaults for graceful degradation, update via admin UI. Easy to migrate to new systems.",
+      "Logo trimming on canvas (logoLoader.ts)—detects transparent/white borders pixel-by-pixel, re-crops image as PNG data-URI. Solves visual alignment issues when logos have padding. Pattern: load image as data-URI, draw to canvas, scan bounds, drawImage to new canvas at trimmed coords, return toDataURL.",
+      "Email composition with template + variable substitution (SendEmailDialog). Templates stored in email_templates table per document type. Pattern: {{kunde_name}}, {{dokument_nr}}, {{betrag}}, {{offen}}, {{mahnstufe}}. Regex replace before display. Allows non-technical users to customize emails without code.",
+      "Edge function for email dispatch (send-document-email)—validates JWT, logs attempt in email_log table, calls Resend API. Pattern: create audit log row immediately (queued), invoke provider, update with status (sent/failed) + provider message ID. Resilience: even if provider call fails, audit trail exists.",
+      "Document type config (documentTypes.ts)—single source of truth for isInvoiceLike, isAngebotLike, hidePrices, showPaymentSection flags. Pattern: pass docCfg to pdfGenerator to conditionally render sections (e.g., Angebot hides bank details, Lieferschein hides prices).",
+      "QR code generation (EPC GiroCode via qrcode library)—SEPA-standardized bank transfer reference. Pattern: build EPC data block (BCD, version, encoding, BIC, IBAN, amount, reference), generate as PNG data-URI, embed in PDF. Only for payable document types (rechnung, anzahlungsrechnung, schlussrechnung).",
+      "DIN 5008 Form B layout—sender line at 45mm, recipient address block at 50mm, fold marks at 105/210mm for window envelopes. Pattern: hard-code DIN positions, add subtle gray fold marks + hole mark (1.5px line), use rightmost 60mm for document meta (number, date, UID).",
+      "Multi-page PDF handling in jsPDF—page breaks on invoice items table via page-break-inside:avoid in HTML; jsPDF renders table rows and auto-adds new pages. Pattern: use jsPDF.addPage() before y-coordinate exceeds page height, re-draw header/footer on new pages via drawLetterhead/drawFooter.",
+      "Live preview via iframe (InvoicePdfPreview)—generates PDF blob client-side, creates object URL, renders in iframe. Cleanup on unmount (revokeObjectURL). Pattern: useRef for form data, useEffect on open, retry button, watermark overlay for unsaved preview.",
+      "Client-side PDF blob creation + email attachment—InvoicePdfPreview returns blob, SendEmailDialog converts to base64 via FileReader.readAsDataURL, sends to edge function. No server storage of PDFs. Pattern: generate once, stream to client, let user choose to attach/send or just download."
+    ],
+    "pitfalls": [
+      "Page breaks: jsPDF's auto-page logic can split rows unexpectedly. Mitigation: use `page-break-inside: avoid` in HTML for critical sections (bank info, closing text); test PDFs with variable-length item lists. Edge case: if one item row exceeds page height, it still breaks.",
+      "Font support: jsPDF Helvetica uses WinAnsi (cp1252) charset. Emojis + Unicode chars > U+00FF cause issues. Current code sanitizes with safePdfText() → replaces unknown chars with '?'. Better approach: ship custom font or use PDF standard fonts only.",
+      "Logo aspect ratio: If logo image has wrong intrinsic dimensions or server doesn't return them, jsPDF.getImageProperties() may fail. Trim padding canvas operation also depends on pixel data availability. Fallback: always provide fixed width_mm + height_mm in layout settings.",
+      "CORS on image loading: logoLoader.ts fetches logo from Supabase Storage public URL + cached favicon. If Supabase Storage doesn't return CORS headers, canvas.drawImage() in trimLogoPadding fails silently. Current code catches exceptions but returns untrimmed. Verify bucket CORS policy.",
+      "Large PDFs (100+ pages): jsPDF builds entire PDF in memory as JavaScript object. No streaming. Heavy items lists or photo galleries will stall the client. Mitigation: paginate invoice items in UI, split very long lists across multiple invoices, or use server-side rendering (Puppeteer/wkhtmltopdf).",
+      "Email template variable replacement: applyVars() in SendEmailDialog uses simple regex replace. If template variable name appears in actual content (e.g., {{kunde_name}} in closing text), it gets replaced unintentionally. Mitigation: use stricter delimiters or escaping (e.g., \\{{...\\}}).",
+      "Layout JSON parsing: parseLayoutSettings() merges user's JSON with defaults. If user edits DB directly + breaks JSON, parse silently fails → returns DEFAULT_LAYOUT. Silent error: no warning to admin. Better: add JSON schema validation + error toast in UI.",
+      "Accent color in PDF: hexToRgb() converts #RRGGBB to [R, G, B]. If hex is invalid (e.g., '#abc' or '#12345G'), function may crash or return [0,0,0]. Current code should validate before saving in admin UI.",
+      "Email log audit table: Every email attempt creates email_log row. Over time, table blooms (100k+ rows). No automatic cleanup. Recommend: add cron job to archive/delete entries older than 90 days.",
+      "PDF data-URI size limits: If PDF is > ~2-3 MB, converting to base64 for email attachment may exceed HTTP body limits or browser memory. Resend API has file size limits per spec. Mitigation: compress images, avoid embedding multiple high-res photos.",
+      "Logo cache invalidation: clearLogoCache() is called after upload in InvoiceLayoutEditor. But if multiple tabs/windows are open, cache invalidation is local. Recommend: use service worker or broadcast channel to sync across tabs.",
+      "DIN 5008 fold marks: Hardcoded at 105, 148.5, 210mm. Assumes A4 + portrait. If someone prints on A3 or landscape, marks are wrong. Pattern: make fold mark positions configurable or detect page size.",
+      "Bank info rendering: Shows in footer if show_bank_in_footer=true, but only if layout.footer.line2 is empty (fallback). If line2 is set, bank details are hidden. Potential user confusion. Better: explicit toggle for bank info, separate from footer line2.",
+      "No server-side PDF generation:** Currently uses jsPDF (client) + sends HTML to edge function (returns base64). This means: (1) heavy PDFs can hang the client, (2) no server-side validation of layout before render, (3) if user's browser is old/doesn't support canvas, PDF fails silently. For HERO app, consider Puppeteer/wkhtmltopdf on server."
+    ],
+    "dataModel": [
+      "app_settings table: key='invoice_layout', value=JSON string of InvoiceLayoutSettings (company, logo, footer, contact, accent_color). Single row per company.",
+      "email_templates table: typ (rechnung, angebot, mahnung_1, etc.), subject (string), body_html (rich HTML). Used by SendEmailDialog to pre-populate compose window.",
+      "email_log table: id, invoice_id (FK), to_address, cc_addresses (array), reply_to, subject, body_html, attachment_filename, provider (resend), status (queued/sent/failed), error_message, provider_message_id, sent_by (user FK), created_at. Audit trail of all emails.",
+      "invoices table: id, typ (angebot/rechnung/gutschrift/etc.), nummer, datum, kunde_name, kunde_email, kunde_adresse, kunde_plz, kunde_ort, kunde_land, kunde_uid, kunde_anrede, kunde_titel, kunde_kundentyp, brutto_summe, netto_summe, mwst_satz, mwst_betrag, bezahlt_betrag, status (offen/bezahlt/storniert), faellig_am, leistungsdatum, leistungsdatum_bis, gueltig_bis, zahlungsbedingungen, notizen, mahnstufe.",
+      "invoice_items table: id, invoice_id (FK), position (sort order), beschreibung, menge, einheit, einzelpreis, gesamt (=menge*einzelpreis).",
+      "invoice_templates table: id, user_id, name, beschreibung, kategorie, einheit, einzelpreis, netto_preis, brutto_preis, ust_satz, ist_aktiv, ist_lagerartikel, ist_set, foto_path, ek_netto, vk_netto, aufschlag_prozent, vk_preis_manuell, lieferant, produktgruppe, kurzbezeichnung, langbezeichnung, artikelnummer, produktnummer.",
+      "document_texts table: typ (rechnung/angebot/lieferschein/mahnung_1), custom_intro_text, custom_closing_text, custom_danke_text. Allows per-document-type customization of opening/closing paragraphs in PDF.",
+      "Storage buckets: 'logos' (logo.png/jpg/webp—custom company logo), 'project-materials' (material-fotos/<templateId>.<ext>), 'documents' (disturbance reports, other generated PDFs if archived)."
+    ],
+    "recommendations": [
+      "Migrate to server-side PDF generation (Puppeteer/wkhtmltopdf/deno_pdf) in HERO app for better control: reduces client memory pressure, enables sophisticated layouts, supports custom fonts natively, easier to add watermarks/security features. Keep client-side preview but offload heavy rendering to server.",
+      "Implement PDF storage in Supabase: After invoice is saved, generate PDF on server, store as base64 or binary blob in documents table or file storage. Enables audit trail (who downloaded which PDF, when), reprint without regenerating, version control if layout changes post-send.",
+      "Add JSON schema validation to layout settings: Before saving in app_settings, validate InvoiceLayoutSettings against a JSON schema (e.g., via ajv). Catch typos in hex colors, invalid margin values, missing required fields. Provide clear error messages to admin.",
+      "Create a layout preview library: Instead of full invoice preview, show a small static preview of the layout (logo size, footer spacing, accent color, sender line) so admins can tweak without generating full PDFs repeatedly.",
+      "Implement email template tags with escaping: Change from simple {{variable}} to {{&variable}} (escaped) and {{{variable}}} (unescaped). Prevents accidental replacement of variable names in content. Use a templating library (Handlebars, EJS) instead of regex replace.",
+      "Add page number and total pages to footer: Currently shows page numbers if enabled, but should show 'Page 1 of 3' style. Requires two-pass rendering or server-side logic. In jsPDF, add page numbers after all content is rendered.",
+      "Support custom fonts in PDFs: Ship with Montserrat (already in HTML for web display) as embedded font in jsPDF. Would give typography consistency and support non-Latin characters better. Use jsPDF's addFont() with custom TTF.",
+      "Create layout versioning: Add created_at, updated_at, version to app_settings. When invoice is saved, store layout snapshot in invoice metadata. Allows reprinting with original layout even if admin changes it later.",
+      "Implement responsive logo sizing: Instead of fixed width_mm, allow 'auto' that scales logo to fit 50% of header space. Or add logo_scale_percent field (50%, 100%, etc.).",
+      "Add bank info to individual invoices: Currently stored in app_settings. Better: allow override per invoice (e.g., different project has different account). Store bank_kontoinhaber, bank_iban, bank_bic in invoices table with defaults to app_settings.",
+      "Enable multi-language support: Create email_templates and document_texts per language code (de, en, it). Use customer's language preference to select templates. Layout colors/logo stay global.",
+      "Implement rate limiting on email sending: SendEmailDialog + send-document-email edge function should check daily/hourly sending limits per user. Prevent accidental bulk sends or abuse. Store in a rate_limits table or use Redis.",
+      "Add digital signatures to PDFs: If compliance is needed (e.g., tax audit), embed signature image or use PDF signature widget (PDFKit or LibreOffice integration). Store signature private key securely (e.g., HashiCorp Vault).",
+      "Create a test PDF generation endpoint: Admin page to generate sample PDF with current layout + sample data. No invoice save. Useful for previewing before going live.",
+      "Optimize logo handling: Instead of trimming on every render, trim once at upload and store trimmed version. Current approach recalculates padding bounds every time PDF loads. Saves 10-50ms per preview."
+    ]
+  },
+  {
+    "subsystem": "Material/Service Catalog & Pricing (Artikelstamm + Leistungen + Verkaufspreise)",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/InvoiceTemplates.tsx",
+        "role": "Master catalog UI: article creation, EK/VK pricing, bulk operations, material set editor integration. Primary entry point for Artikelstamm management."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/MaterialSetEditor.tsx",
+        "role": "Stücklisten/Material Sets: component picking, menge per Bezugseinheit, auto-VK calculation (ΣEK × (1+Aufschlag%)), quick-create inline materials, set composition editing."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/BulkPriceDialog.tsx",
+        "role": "Batch price updates: filter by category/supplier/type, +X% or +€ operators, EK/VK/both targets, ripple-effect recalculation for auto-VK sets whose components change."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/MaterialCatalogDialog.tsx",
+        "role": "Material picker UI for project material tracking: fetch from invoice_templates, grouped by kategorie, inline quantity control, multi-select with submission."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/OfferPackages.tsx",
+        "role": "Offer package templates (e.g. 'Bad komplett'): pre-configured item sets with default quantities, links to invoice_templates or free-form items, reusable bundles for quick quote creation."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ImportFromOfferDialog.tsx",
+        "role": "Import existing invoice positions into another document: fetch by typ='angebot', show items with menge/einheit/einzelpreis, bulk-apply to new target."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ImportMaterialsDialog.tsx",
+        "role": "Import project material_entries into invoice: group by name, sum quantities, allow price override per item before insertion."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260426000000_material_sets_v2.sql",
+        "role": "Schema: ek_netto (purchase), vk_netto (sale), bezugseinheit, aufschlag_prozent, vk_preis_manuell flags for sets; backfill logic."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260425200000_material_foto_sets.sql",
+        "role": "Schema: invoice_template_components table (parent→component links), ist_set flag, no-nested-sets trigger, RLS policies."
+      }
+    ],
+    "dataModel": [
+      "invoice_templates (Artikelstamm): id, name, kurzbezeichnung, langbezeichnung, beschreibung, einheit, kategorie, produktgruppe, lieferant, produktnummer, artikelnummer, ist_aktiv, ist_lagerartikel, foto_path, created_at. PRICING: einzelpreis (legacy), netto_preis (legacy), brutto_preis (legacy), ust_satz, ek_netto (purchase cost netto), vk_netto (sale price netto), ist_set (boolean), bezugseinheit (unit of reference for sets, e.g. m², lfm), aufschlag_prozent (markup % on ΣEK for auto-VK), vk_preis_manuell (TRUE=override, FALSE=auto-calculated from components).",
+      "invoice_template_components (Stücklisten): id, parent_template_id (SET), component_template_id (MATERIAL), menge (quantity per 1 Bezugseinheit), sort_order. Trigger: enforce_no_nested_sets (sets cannot contain other sets). ON DELETE CASCADE parent→children.",
+      "invoice_items (Rechnungs-Positionen): beschreibung, menge, einheit, einzelpreis, set_template_id (if this is a set summary row), set_snapshot (JSONB snapshot of components at invoice creation, not rendered but for post-hoc costing).",
+      "material_entries (project-level consumption tracking): project_id, user_id, material, menge, einheit, einzelpreis, typ (entnahme/rueckgabe/verbrauch), notizen, datum. Summaries: Verbrauchsübersicht (consumed = entnahme - rueckgabe).",
+      "offer_packages: id, user_id, name, beschreibung. offer_package_items: package_id, template_id (FK→invoice_templates, nullable), beschreibung, einheit, einzelpreis, default_menge, sort_order.",
+      "RLS: invoice_templates = admins full access, users SELECT all, UPDATE own user_id rows. invoice_template_components = owner (via parent) can manage, all authenticated can SELECT. material_entries = all authenticated can SELECT, INSERT own user_id, UPDATE/DELETE own."
+    ],
+    "reusablePatterns": [
+      "EK/VK Split Model: Two-price system (ek_netto for cost, vk_netto for sale) allows margin calculation and auto-pricing. Backfill from legacy einzelpreis/netto_preis. Always sync einzelpreis/netto_preis/brutto_preis when vk_netto changes (for backward compatibility).",
+      "Auto-VK Calculation for Sets: autoVk = ROUND(Σ(component.ek_netto × menge) × (1 + aufschlag_prozent/100)) for each Bezugseinheit unit. Only applied if vk_preis_manuell=FALSE. Allows margin-based pricing (cost-plus model).",
+      "Ripple-Effect Batch Pricing: When EK of materials changes via BulkPriceDialog and sets depend on those materials with auto-VK enabled, recalculate and save new set VKs automatically. Detects affected sets via invoice_template_components join, recalcs their Σ EK, applies aufschlag_prozent. Preserves manually-overridden VKs.",
+      "Material Picker with Search & Grouping: Filter by kurzbezeichnung, name, kategorie. Group by kategorie. Inline quantity +/- controls. Submit all selected items in batch. Used in MaterialCatalogDialog, imported to project material_entries.",
+      "Quick-Create Inside Set Editor: User can inline-create new materials (kurzbezeichnung, einheit, netto_preis, ust_satz) without leaving set editor. Checks for duplicates (case-insensitive on kurzbezeichnung/name). Adds created material as component immediately.",
+      "Set Component Validation: Enforce no nested sets (trigger on invoice_template_components). Unique constraint (parent, component) prevents duplicate component additions. When converting material→set or set→material, diff and delete/insert components.",
+      "Material Import from Project Entries: Group material_entries by material name (case-insensitive), sum menge per group, preserve einheit from first occurrence, allow per-item price override before insertion to invoice.",
+      "Import from Existing Invoices: Fetch invoices with typ='angebot', show items (beschreibung, menge, einheit, einzelpreis), allow bulk re-use in new documents. Useful for recurring quotes or project variations.",
+      "Signed URL Caching for Foto_path: Generate signed URLs (1h expiry) for all foto_path materials on catalog load. Parallelize URL generation. Store in React state keyed by template.id. Re-gen on fetch.",
+      "Bulk Price Update Logic: Load all invoice_templates, apply filter (kategorie/lieferant/ist_set), compute changes per row (operator: % or €, target: EK/VK/both), preview first 20, confirm total count, batch-update all rows, trigger ripple if needed.",
+      "Set Summary in Invoice: set_snapshot (JSONB) captures {bezugseinheit, aufschlag_prozent, komponenten:[{name, einheit, menge, ek, vk}]} at invoice creation. Allows post-hoc margin analysis without querying component table (which may have been modified/deleted since)."
+    ],
+    "pitfalls": [
+      "Price Field Proliferation: einzelpreis, netto_preis, brutto_preis, vk_netto all represent sale price. Legacy code uses einzelpreis/netto_preis; new code uses vk_netto. Must sync all three when saving to avoid stale data in old UI views. Recommend deprecating einzelpreis/netto_preis entirely, use vk_netto + ust_satz to compute brutto on-the-fly.",
+      "Set Pricing Not Auto-Updated: Auto-VK only recalcs if vk_preis_manuell=FALSE. User must manually click 'Preis neu berechnen' button (or bulk-price-update must trigger ripple) to update. Stale prices remain if components change and ripple doesn't fire (e.g., only EK changed but EK target not selected in bulk dialog).",
+      "Nested Set Prevention Only at Insert: Trigger prevents NEW nested sets, but if parent set is marked ist_set=FALSE, existing nested components aren't cleaned up. Could leave orphaned component rows. Need cleanup migration or DELETE cascade on ist_set flip.",
+      "No Audit Trail on Component Changes: invoice_template_components updates (menge changes) are not logged. Can't trace when/who changed a set composition. Affects costing accuracy if sets are modified after being used in invoices (snapshot helps, but not for future invoices using that set).",
+      "Ripple Calculation N+1: BulkPriceDialog loads all templates, computes changed rows, then for each affected set, queries components + their EKs individually in a loop. Scales poorly for hundreds of sets with many components. Should use batch join + aggregate in single query.",
+      "Bezugseinheit Mismatch Risk: Set bezugseinheit (e.g., 'm²') must match intended use context (e.g., component quantities are per m²). No validation that component units sum correctly or make sense. User can define 5 lfm Alu per 1 Stk. (nonsensical). Documentation-dependent.",
+      "Set Snapshot Not Updated on Component Change: If set components change AFTER invoice creation, snapshot is stale. Re-issuing invoice uses current set definition, not original. Can't reproduce original costing. Consider versioning sets or making snapshot immutable.",
+      "Foto Upload Path Collision: For new materials without ID, foto_path uses randomUUID(). If multiple new materials uploaded but never saved (dialog closed), temp UUIDs are orphaned in storage. Should implement cleanup for abandoned images.",
+      "Category/Lieferant Enum Drift: No formal enum table for kategorie, lieferant, produktgruppe. Free-text fields lead to typos, inconsistent naming (e.g., 'Arbeit' vs 'ARBEIT'), duplicate categories. Bulk price filter breaks if user misspells. Should move to separate lookup tables with FK constraints.",
+      "No Soft-Delete or Status Flag: ist_aktiv flag exists but is not used in RLS or queries. Deleted materials are hard-removed; can't restore or audit. Dead links in old invoices (set_template_id points to deleted set). Consider soft-delete + archive flag for data preservation.",
+      "EK→VK Margin Not Calculable: No stored margin field. Must compute dynamically as (vk - ek) / ek. Prone to rounding errors. Especially problematic for sets with auto-VK where margin emerges from aufschlag_prozent, not a direct markup. Should store calc_margin_prozent for quick filtering/reporting.",
+      "Missing Unit Conversion: einheit is text field (Stk., m², lfm, kg, etc.) with no formal unit system. Mixing units in set components (5 lfm + 10 kg + 3 Stk.) is allowed and confusing. No conversion logic. Recommend unit taxonomy + conversion table for composite calculations.",
+      "Bulk Price Dialog Does Not Handle USt**: Changing EK does not auto-recompute brutto (which uses ust_satz). brutto_preis stays stale if only EK was updated. Dialog should recompute brutto for all updated rows.",
+      "API Surface: BulkPriceDialog, MaterialSetEditor, MaterialCatalogDialog all load templates independently, creating duplicate queries. No shared caching layer. Recommend React Query / SWR for client-side caching and deduplication."
+    ],
+    "recommendations": [
+      "Consolidate Price Fields: Deprecate einzelpreis and netto_preis. Use vk_netto + ust_satz as single source of truth. Compute brutto_preis on-the-fly or cache in denormalized column (updated via trigger). Simplify API surface and eliminate sync bugs.",
+      "Add Margin Tracking: Store calc_margin_prozent = ROUND((vk_netto - ek_netto) / NULLIF(ek_netto, 0) * 100) as computed column or trigger-updated column. Enables fast margin filtering, margin-based bulk pricing ('maintain 40% margin' instead of '+15%'), and costing dashboards.",
+      "Unit Taxonomy: Create units lookup table (id, symbol, name, category, conversion_factor_to_base). invoice_templates.einheit becomes FK to units. Enables unit conversions in set calculations and prevents free-text mixing. Start with ISO 80000 standard units.",
+      "Versioned Sets / Component Snapshots: On set component change, create immutable snapshot row (set_version table) with full component list + prices. Future invoices can reference specific version, not live set. Allows costing comparison 'used v1.2 then v2.0' and supports audit.",
+      "Soft-Delete Architecture: Add is_deleted, deleted_at, deleted_by to invoice_templates and components. Update RLS to exclude deleted rows. Preserve FK references to deleted sets (show 'archived' label in invoice). Enable restore/undo within grace period.",
+      "Category Lookup Table: Create categories (id, name, sort_order) + supplier lookup. Make kategorie/lieferant/produktgruppe FK references. Enforce enum-like consistency. Cascade delete logic: mark unused categories as inactive, not deleted.",
+      "Audit Trail on Template Changes: Audit table (template_id, changed_by, changed_at, change_type, old_value, new_value) for all mutations. Especially for EK/VK changes and component edits. Enable 'show history' in set editor and costing dashboards.",
+      "Ripple Calculation Optimization: Batch-load all affected sets + their components in single query with aggregation. Update sets in bulk with ON CONFLICT clause. Avoid N+1 in BulkPriceDialog.handleApply(). Consider async job queue if catalog grows >10k items.",
+      "Set Pricing Modes Expansion: Add pricing modes (cost_plus, fixed_margin, list_minus, match_component_sum). Auto-VK with aufschlag_prozent is one mode; enable 'cost_plus 30%' or 'margin_target 40%' mode toggles. Compute VK according to selected mode.",
+      "Foto Storage Cleanup: Add batch job (weekly) to identify orphaned foto_path entries (template deleted, but foto not removed from storage). Clean up storage. Implement async foto upload confirmation (user must save material to persist foto; temp uploads expire after 24h).",
+      "Material Variants: Support ek_netto / vk_netto by supplier. Track cost+price per lieferant. Set can select which supplier variant to use in components. Enables multi-sourcing and cost comparison.",
+      "Pricing Rules Engine: Support discount rules (e.g., 'buy 10+ units of this material → 5% EK rebate'), volume-based aufschlag (% increases with quantity). BulkPriceDialog becomes rule definition UI; ripple re-applies rules on material changes.",
+      "Import CSV Bulk Materials**: Add CSV uploader to InvoiceTemplates: (kurzbezeichnung, einheit, ek_netto, vk_netto, kategorie, lieferant). Batch insert/upsert by kurzbezeichnung. Replaces MaterialFileImport for bulk catalog seeding.",
+      "Set Bill-of-Materials Export: Generate PDF/Excel with component breakdown, unit costs, markups. For set templates and invoices with set_snapshot. Useful for customer communication and internal costing.",
+      "Real-Time Set Pricing Display**: In MaterialSetEditor, show live set VK + margin % as components are added/removed and aufschlag_prozent changes. Real-time ripple preview if bulk-pricing scenario active.",
+      "Mobile-Optimized Material Picker**: Separate mobile component for MaterialCatalogDialog (larger touch targets, swipe grouping, voice search for kurzbezeichnung barcode scanning integration)."
+    ]
+  },
+  {
+    "subsystem": "Projects & Pipeline/Status Handling (monti.pro)",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/Projects.tsx",
+        "role": "Project list view with status filtering, clientside sorting, status toggle for admins, quick-upload actions"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/ProjectOverview.tsx",
+        "role": "Project detail hub: status selector, document categories (photos/plans/reports/chef), related documents (invoices/bautagesberichte/protokolle), customer+project address separation, team assignments"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/ProjectDetail.tsx",
+        "role": "File browser per document type (plans/reports/photos/chef); signed URL generation for secure access; admin-only chef folder"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/CreateProjectDialog.tsx",
+        "role": "Comprehensive project creation wizard: sections for project data, customer (existing/new), project address, project content (Gewerke/services), team assignments; post-save file upload"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/hooks/useProjectStatuses.ts",
+        "role": "Centralized project status loader from project_statuses table; color coding (farbe_bg/farbe_text); findByName helper"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ContactHistoryTimeline.tsx",
+        "role": "Activity log pattern: records anruf/meeting/notiz/email/besichtigung entries tied to customer or project; sorted by date descending"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260407100000_sprint1_colors_contacts_numbers.sql",
+        "role": "Project status system schema: project_statuses table (name, farbe_bg, farbe_text, sort_order, is_default); contact_history table; seed statuses Anfrage→Angebot→Auftrag→In Arbeit→Pause→Abnahme→Abgeschlossen"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260423300000_accessible_projects_rpc.sql",
+        "role": "RLS access control: list_accessible_project_ids_for_user RPC checks admin/vorarbeiter (all projects) vs. mitarbeiter (only if verantwortlicher/bauleiter/in zugewiesene_mitarbeiter JSONB array)"
+      }
+    ],
+    "reusablePatterns": [
+      "Status-Tagging Pattern: ConfigOptions hook (useConfigOptions) + admin-configurable project_statuses table with farbe_bg/farbe_text color pairs; findByName lookup; status badges rendered throughout UI",
+      "Multi-Role Access Control: zugewiesene_mitarbeiter JSONB array + RPC check `p.zugewiesene_mitarbeiter ? emp_id::text` (PostgreSQL contains operator) = elegant employee assignment filtering without dedicated junction table",
+      "Customer↔Project Linkage: Dual-address model separates kunde_* (billing) from projekt_* (work site) fields in projects table; customer_id FK to customers table; composeCustomerName() helper handles both Geschäftskunde/Privatkunde",
+      "Document Categorization: bucketMap (plans/reports/photos/chef) + DocumentType union; separate storage buckets per type; admin-only chef bucket; ProjectPhotoGallery component for photo grid with lightbox",
+      "Project Detail Hub: ProjectOverview.tsx aggregates 8+ data zones (files, invoices, bautagesberichte, protokolle, team hours, angebots-positionen) in dashboard-grid layout; quick-action buttons navigate to detail pages",
+      "Activity Timeline Component: ContactHistoryTimeline reads/writes contact_history table (typ enum + dated entries); reusable TYPE_CONFIG map for icon/color per entry type; supports both customer & project FK filtering",
+      "File Upload + Metadata: QuickUploadDialog + handlePhotoCapture pattern: timestamp-prefixed paths, document table records (user_id/project_id/typ/file_url); SignedUrl generation for private buckets",
+      "Validation Patterns: Date range validation (Ende >= Start), budget/volume non-negative checks, email regex validation, PLZ format (4-5 digits), project name required; toast feedback for user",
+      "Fetch + Realtime: Supabase channel subscription on projects table; fetchProjects() uses RPC for access-controlled list; order by created_at DESC; mergeDuplicateProjects() on page load"
+    ],
+    "pitfalls": [
+      "No explicit Kanban/Pipeline UI: Status is a flat enum string (project_statuses.name), not a drag-drop board. Projects.tsx filters by status and sorts, but no columnar pipeline view → HERO must build this from scratch",
+      "Address Handling Complexity: adresse stored as single TEXT field in projects table (no street/city split), parsed on edit with .split(',').map(s=>s.trim()); brittle if comma appears in address; recommend dedicated address columns",
+      "JSONB Array Fragility: zugewiesene_mitarbeiter is JSONB array of employee IDs (strings). Deletion of employee requires manual JSONB manipulation in 3+ migration functions. No denormalized employee join table → risky for referential integrity",
+      "Sparse Project Linking: bautagesberichte, besprechungsprotokolle, ersttermine all have optional project_id FK; no unified 'linked documents' view. ProjectOverview fetches these manually in 3+ separate queries instead of single joined fetch",
+      "No Activity Audit Log: contact_history records only manual contact entries (calls/meetings), NOT system events. No auto-logged field changes, status transitions, or document uploads. Difficult to trace who did what and when",
+      "Hardcoded Kategorie Mapping: KATEGORIE_META in Projects.tsx hardcodes 7 business units (montipro/bks/gartenmacher...). Adding new unit requires frontend code change, not DB config. Should use config_options table pattern",
+      "Date Validation Late: geplanter_start/geplantes_ende validated only on form save in handleEditSave/handleSave, not in real-time inputs. User doesn't know error until submit attempt",
+      "File Type Acceptance Inconsistent: CreateProjectDialog specifies accept='image/*' for photos but no validation server-side. ProjectDetail.tsx does file type check (jpg/png/gif/webp/pdf) in render, not upload",
+      "No Pagination on Nested Lists: ProjectOverview shows first 5 purchase_invoices/projectProtokolle; user must navigate to detail page to see rest. No 'show more' button pattern",
+      "Status-Only Filtering: Projects.tsx has bereich filter too, but no Gewerke (services) filter despite leistungsarten JSONB array. User must scroll/search to find projects by service type"
+    ],
+    "dataModel": [
+      "projects: UUID id, name, beschreibung, adresse (TEXT, single), plz, ort, land, status (string, FK to project_statuses.name), customer_id (FK customers), projektart, prioritaet, geplanter_start, geplantes_ende, budget, auftragsvolumen, bauleiter_id (FK employees), projekt_kontakt_name, projekt_kontakt_telefon, kategorie, bereich, projekt_typ, leistungsarten (JSONB array), zugewiesene_mitarbeiter (JSONB array of employee IDs), verantwortlicher_id, erfasst_von, erfasst_am, created_at, updated_at",
+      "project_statuses: UUID id, name (UNIQUE), farbe_bg, farbe_text, sort_order, is_default, created_at, updated_at",
+      "contact_history: UUID id, customer_id (FK, nullable), project_id (FK, nullable), typ (anruf/meeting/notiz/email/besichtigung), betreff, beschreibung, datum, dauer_minuten, kontaktperson, erstellt_von (FK auth.users), created_at, updated_at; Indexes on customer_id, project_id, datum DESC",
+      "documents: UUID id, project_id (FK), user_id (FK), typ (photos/plans/reports/materials), name, file_url, beschreibung, created_at",
+      "time_entries: UUID id, user_id (FK), project_id (FK, nullable), datum, stunden, taetigkeit, notizen, created_at, updated_at",
+      "customers: UUID id, user_id (FK), name, kundentyp (geschaeftskunde/privatkunde), firmenname, vorname, nachname, ansprechpartner, adresse, plz, ort, land, email, telefon, uid_nummer, anrede, titel, created_at, updated_at",
+      "RLS Access: Projects visible only if (user is admin/vorarbeiter) OR (user is verantwortlicher/bauleiter) OR (user in zugewiesene_mitarbeiter JSONB array). list_accessible_project_ids_for_user(p_user_id, p_only_active) RPC enforces this",
+      "Multi-Tenant: user_id stored in projects (erfasst_von) and customers (user_id FK); RLS checks user context via auth.uid(); no explicit tenant_id, implicit per user"
+    ],
+    "recommendations": [
+      "BUILD KANBAN BOARD FOR HERO: Replace flat status list with Kanban columns (Anfrage|Angebot|Auftrag|In Arbeit|Pause|Abnahme|Abgeschlossen). Enable drag-drop status changes. Load projects grouped by status for efficient rendering. Store board state (column widths) in user preferences",
+      "DEDICATE GEWERKE (SERVICES) PIPELINE: Create gewerke_statuses table (name, farbe, sort_order) parallel to project_statuses. Link projects.gewerke[] JSONB array to separate per-trade progress tracking. Each Gewerk has own status independent of project status",
+      "SPLIT ADDRESS INTO STRUCTURED COLUMNS: Replace adresse TEXT with street, housenumber, plz, ort, land (all TEXT non-null). Validate PLZ format at DB constraint level. Simplifies validation, search, and map integration",
+      "NORMALIZE EMPLOYEE ASSIGNMENTS: Replace zugewiesene_mitarbeiter JSONB with project_employee_assignments junction table (project_id, employee_id, role, assigned_at). Add unique constraint to prevent duplicates. RLS checks this table instead of JSONB contains",
+      "ADD SYSTEM ACTIVITY LOG: Create activity_log table (id, project_id, action, old_value, new_value, changed_by, changed_at). Auto-insert triggers on projects/documents status changes. Display in ProjectOverview as immutable audit trail",
+      "MIGRATE KATEGORIE TO CONFIG: Move hardcoded KATEGORIE_META to config_options(key='geschaeftsbereich') table. Frontend loads from DB, not hardcoded. Easier to add/rename business units without code redeploy",
+      "REAL-TIME DATE VALIDATION: Add form-level onChange handlers for start/end date inputs. Show inline error if end < start. Use HTML5 date input constraints (min/max attributes)",
+      "IMPLEMENT FILE TYPE VALIDATION SERVER-SIDE: Add RLS-visible bucket policy that blocks non-image uploads to project-photos bucket. Use Supabase storage metadata/mimetype checks in Edge Function before insert",
+      "PAGINATE NESTED DOCUMENT LISTS: ProjectOverview.tsx should show first 3 + 'show more' link. Load rest on demand. Reduces initial query load, improves perceived performance",
+      "ADD GEWERK FILTER TO PROJECT LIST: Projects.tsx statusFilter + bereichFilter pattern. Add leistungsartenFilter to checkbox/multi-select. Query projects WHERE leistungsarten @> jsonb_build_array('val') for JSONB filtering"
+    ]
+  },
+  {
+    "subsystem": "Time Tracking & Scheduling (Zeiterfassung & Plantafel)",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/TimeTracking.tsx",
+        "role": "Main time entry form — employees log work blocks with project, location, activity, breaks, vehicle km. Supports multiple blocks per day, team member assignment via Edge Function. Absence dialogs for Urlaub/Krankenstand/ZA/Weiterbildung/Feiertag with document upload."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/MyHours.tsx",
+        "role": "Employee personal hours report — displays all entries per month, calculates Saldo (auto from entries + manual from time_accounts). Shows day balances, supports edit/delete for current month."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/HoursReport.tsx",
+        "role": "Admin hours audit & export — per-employee monthly view with full time details, Excel export (mit/ohne Überstunden), day-level saldo aggregation. Also admin edit/nachtrag dialogs for entries and absences."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/FreelancerHours.tsx",
+        "role": "Simplified freelancer time entry — project + date + hours + activity only. No pause logic, no Soll/Saldo, no time account. Separate from employee workflow."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/ScheduleBoard.tsx",
+        "role": "Drag-and-drop planning board (Plantafel) — month/week view with projects, teams, and individual employees. Einsatz (date-range assignments) with pointer-event-based D&D, team management, company holidays."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/LeaveManagement.tsx",
+        "role": "Admin leave/holiday management — pending leave requests (approve/reject), leave balances per employee per year, used/remaining day tracking."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/TimeAccountManagement.tsx",
+        "role": "Admin time account (Stundenkonto) UI — manual balance adjustments (Gutschrift/Abzug), live auto-saldo calculation from time_entries, transaction audit log."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/workingHours.ts",
+        "role": "Working time rules — getNormalWorkingHours (10h Mo-Do, 0 Fr-Su), getDefaultWorkTimes (07:00-17:30, Pause 12:00-12:30), getTotalWorkingHours, getWeeklyTargetHours (40h)."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/hoursAccounting.ts",
+        "role": "Core saldo logic — aggregateByDay groups entries by date, calculates Soll (10/0 per day), Ist (sum of entries), Saldo (Ist - Soll). Sonder-Taetigkeiten (Urlaub/Krank/ZA/Feiertag/Weiterbildung) = neutral (Saldo 0). totalAutoSaldo aggregates across entire time_entries set."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/schedule/scheduleTypes.ts",
+        "role": "Schedule data models — Einsatz (date-range assignment with user/project), Team/TeamMember, BoardProject (pinned project on Plantafel), LeaveRequest, CompanyHoliday, EmployeeColor."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/schedule/useScheduleData.ts",
+        "role": "Schedule data fetching hook — loads profiles, projects, einsaetze, teams, board_projects, leave_requests, company_holidays for a date range, respects RLS via list_accessible_project_ids_for_user RPC."
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/schedule/scheduleUtils.ts",
+        "role": "Schedule helpers — getEmployeeColor (db + hash-based fallback), getEinsatzColor (board_color override > kategorie meta > hash), project color hash function."
+      }
+    ],
+    "reusablePatterns": [
+      "Core saldo model from hoursAccounting.ts — aggregateByDay groups by datum, applies Soll from getNormalWorkingHours, marks Sonder-Taetigkeiten as neutral. Reusable: copy entire DayBalance type + functions, minimal schema coupling.",
+      "Time entry validation cascade — TimeTracking.tsx validates: (1) times present, (2) end > start, (3) pause < block duration, (4) no overlap with existing entries, (5) no full-day absence on partial blocks. Guards against 90% of calendar corruption.",
+      "Absence flow pattern — date + type (urlaub/krank/za/feiertag/weiterbildung) + full-day toggle + custom hours. ZA deducts from time_accounts.balance_hours with transaction audit. Document upload for Krankenstand to storage + path in notizen.",
+      "Drag-and-drop with pointer capture — handleDragStart captures pointer, handleDragMove uses document.elementFromPoint + [data-cell-user][data-cell-day] attributes to find drop target, handleDragEnd does optimistic update + DB sync. No external library, works on touch.",
+      "Excel export with XLSX-js-style — header merges, column widths, borders, dynamic formula for Saldo calculation. includeOvertime flag switches between Ist/Soll and Regelarbeitszeit columns. Footer with signature line.",
+      "Auto/Manual saldo split — time_accounts.balance_hours = manual adjustments (gutschrift/abzug via UI). totalAutoSaldo(time_entries) = live calculation from entries. Effektiv = auto + manual. Prevents double-counting.",
+      "Team-member time entry sync — when primary user logs work, optionally assign to team members via MultiEmployeeSelect. Creates separate time_entry per team member via 'create-team-time-entries' Edge Function (bypasses RLS).",
+      "Vehicle KFZ tracking in time_entry_vehicles — modus: 'gefahren' (direct km) or 'start_ende' (km_start/km_ende diff). Separate table, only for main user entry (not team members). Supports multiple vehicles per time block.",
+      "Leave-request approval flow — pending requests in UI, admin approves/rejects. On approval, auto-updates leave_balances.used_days, stores reviewer + timestamp. Respects year boundary (start_date.getFullYear()).",
+      "Einsatz Google Calendar sync — DB trigger on INSERT/UPDATE/DELETE of einsaetze automatically syncs to Google Calendar via stored procedure. user_id + project_id + date range determine calendar event. No explicit function call needed in UI."
+    ],
+    "pitfalls": [
+      "Timezone confusion — all times stored as HH:MM strings (07:00) with no timezone info. Date strings are YYYY-MM-DD (no time). Mix of date-fns (which assumes UTC for ISO strings) + manual time arithmetic can cause off-by-one errors on DST boundaries or when user in different TZ.",
+      "Overlap detection per-day only — validation checks overlaps within a single day via minutes arithmetic. Does NOT check multi-day (ganztaegig) einsaetze against time_entries on the same dates. Could double-book an employee.",
+      "Saldo calculation assumes 10h Soll Mo-Do — hardcoded in getNormalWorkingHours. No support for varying Soll per employee (e.g., part-time at 6h/day). No handling of personal work schedule overrides.",
+      "Pause logic fragmented — time_entries.pause_minutes is simple delta, but TimeTracking also allows pause_start/pause_end for display. On edit, recalc only uses pause_minutes. Could lose granular pause window data.",
+      "Wetterschicht_stunden is 'FYI only' — stored in time_entries but not integrated into saldo calculation. Separate column, no logic to compensate or track. Risk of reporting double-counting (weather hours + regular hours).",
+      "Leave balance doesn't auto-reset yearly — admin must manually manage leave_balances per year. No trigger on year boundary. Old balances stay forever in DB, admin must remember to adjust.",
+      "Excel export double-counts day summaries on multi-entry days — inner loop outputs each entry row, then after dayEntries loop pushes a 'Tagessumme' row. But if you edit and re-export, old entries may still exist → sum wrong.",
+      "Team member assignment has no 'primary' logic — all team members get identical time_entries (same stunden, project, taetigkeit). No easy way to split hours or mark who did what portion. Manual notizen only.",
+      "Freelancer role not enforced at DB level — ist_freelancer flag in employees table, but checked only in UI (FreelancerHours page). Could manually call TimeTracking RLS and bypass freelancer constraint.",
+      "Multi-project days aggregate only per-day, not per-project — MyHours and HoursReport show day saldo. No breakdown of which project contributed how much overage. Hard to allocate bonus hours to correct client.",
+      "leave_requests.type field inconsistent naming — codebase refers to 'urlaub', 'krankenstand', 'za', 'feiertag', 'weiterbildung' in TimeTracking. leave_requests may use different enum. Need to check migrations.",
+      "No concurrent edit detection — if two users edit the same time_entry simultaneously, last write wins (Supabase default). No conflict resolution or optimistic locking. Could lose changes.",
+      "Auto-Saldo recalc on every fetch — TimeAccountManagement loads ALL time_entries for all users to compute saldoMap. N users × 250 work days = 2500 rows * for each user view. Should limit to recent year or cache.",
+      "ScheduleBoard D&D visual feedback weak — drag state only stored in React, no visual indicator on EinsatzBar during move. User sees highlight on drop target but might not realize they're dragging until release.",
+      "Google Calendar delete via trigger — when einsatz is deleted, trigger runs async delete on Google side. If Google API fails, Supabase deletes locally but Google event remains orphaned. No retry or dead-letter queue."
+    ],
+    "dataModel": [
+      "time_entries (core work log) — user_id, datum, start_time, end_time, pause_minutes, stunden (calculated), taetigkeit (activity), location_type (baustelle/werkstatt), project_id (FK), disturbance_id (optional), wetterschicht_stunden (weather hours, FYI), notizen, week_type, nachgetragen_von/am (audit trail for admin entries). RLS: eq('user_id', auth.uid()) + admin bypass.",
+      "time_entry_vehicles (KFZ mileage) — time_entry_id (FK), vehicle_id (FK), modus ('gefahren' or 'start_ende'), km_gefahren (direct), km_start/km_ende (range). One time_entry can have multiple vehicles. Only populated if user manually adds KFZ block in TimeTracking.",
+      "time_accounts (balance ledger) — user_id, balance_hours (float, can be negative), updated_at. Single row per user. Stores manual Gutschrift/Abzug. Auto-saldo from time_entries computed live on each fetch.",
+      "time_account_transactions (audit log) — user_id, changed_by (FK profiles), change_type (Gutschrift/Abzug/ZA), hours (positive or negative), balance_before/after, reason (text), created_at. Immutable log for compliance.",
+      "leave_requests (Urlaub workflow) — user_id, start_date, end_date, days (calculated), type (urlaub/krankenstand/za/feiertag/weiterbildung), status (beantragt/genehmigt/abgelehnt), notizen, reviewed_by, reviewed_at. On approval, auto-updates leave_balances.",
+      "leave_balances (quota tracking) — user_id, year (INT), total_days (e.g., 25), used_days (incremented on approval). No auto-reset. Admin manually creates/adjusts per year.",
+      "einsaetze (assignment schedule, replaces old 'assignments') — user_id, project_id, name (optional project name override), adresse, beschreibung, start_date, end_date, ganztaegig (bool), start_time, end_time, google_event_id, created_by. DB trigger syncs to Google Calendar on INSERT/UPDATE/DELETE.",
+      "teams — id, name, sort_order. Container for team_members grouping.",
+      "team_members — team_id (FK), user_id (FK), sort_order. M:N relationship, allows multi-team membership.",
+      "board_projects (Plantafel pin) — project_id (FK), board_color (hex override, e.g., #F9E4B7), color_mode (status/custom), start_date, end_date (display window on board), beschreibung, created_by. Not same as projects table; separate 'view' concept.",
+      "company_holidays — datum (YYYY-MM-DD), bezeichnung (e.g., 'Weihnachten'). Used to shade days on Plantafel. Not integrated into Soll calculation (todo?).",
+      "employee_schedule_colors — employee_id (FK employees, not profiles!), bg_color (hex), text_color (hex). Custom employee bar colors on schedule.",
+      "profiles (user data) — id (FK auth.users), vorname, nachname, is_active, hidden (archive flag). RLS generally allows own row read, admin reads all.",
+      "projects (master project list) — id, name, status, plz, adresse, geplanter_start, geplantes_ende, kategorie (business unit: montipro/bks/etc, maps to Google Calendar color). RLS: read via list_accessible_project_ids_for_user RPC.",
+      "RLS via RPC list_accessible_project_ids_for_user(user_id, only_active) — central access control. Returns {id, name, status} for projects user can see (assigned to them or they're admin/vorarbeiter)."
+    ],
+    "recommendations": [
+      "Introduce EmployeeSchedule table with soll_hours_per_day, timezone, part_time_percentage — allows per-employee Soll override (e.g., 6h/day for part-timers) and timezone-aware time calculations. Update getNormalWorkingHours to query this.",
+      "Add overlap detection at INSERT trigger level — before time_entries insert, check (1) no concurrent gang-taegig einsatz for that user on overlapping dates, (2) no time_entry + time_entry overlap on same day. Fail if conflict detected.",
+      "Refactor pause representation — deprecate pause_minutes, use pause_start/pause_end exclusively. Recalc pause_minutes as derived column (view or trigger) for backward compatibility. Standardize on HH:MM format.",
+      "Implement wetterschicht compensation rule — if wetterschicht_stunden > 0, deduct from Soll (so rainy day Soll = 10h - 2h_rain = 8h). Document whether this is a BKS-only rule or global. Update aggregateByDay logic.",
+      "Add leave_balance auto-reset via cloud function — scheduled cron job on Jan 1 creates new leave_balances row for each employee (copy total_days from previous year, reset used_days to 0). Prevents manual forget.",
+      "Implement full Einsatz-TimeEntry conflict detection — on Einsatz insert, check if any time_entry exists on overlapping dates for that user (ignoring type). Warn or block if ganztaegig einsatz clashes with logged work.",
+      "Add project-level salo breakdown — new table project_day_saldo (user_id, datum, project_id, saldo_hours). Populated by trigger when time_entries inserted. Enables reports like 'who worked most OT on Project X in June?'",
+      "Implement concurrent-edit prevention — add version column (INT default 0) to time_entries. On update, WHERE version = X AND set version = X+1. Reject if version mismatch. Alert user of stale edit.",
+      "Improve D&D visual feedback — during ScheduleBoard drag, render semi-transparent Einsatz bar at drop target location. Show day summary (total hours if dropping on day with existing entries).",
+      "Add Google Calendar sync retry logic — wrapped in cron job that checks google_event_id null OR sync_error not null, re-tries sync. Store last_sync_error + sync_attempt_count for debugging.",
+      "Separate freelancer workflow completely — distinct entry route, no time_accounts, no Soll calculation. Optional: separate database schema (or DB role) to enforce freelancer-only access.",
+      "Build admin 'time entry templates' — allow admins to save & re-apply common patterns (e.g., 'KW12 project X', 'Monday standup 30min'). Speeds up nachtrag for recurring work.",
+      "Add timezone field to profiles + apply to all time arithmetic — use date-fns in 'Europe/Vienna' explicitly. Document that all UI times are local user TZ, all DB times are UTC or offset-naive strings.",
+      "Implement leave request 'draft' status — allow employees to prepare request without submitting for approval. Store drafts locally or as is_draft = true. Reduces approval queue clutter.",
+      "Create 'saldo forecast' view — given employee's YTD saldo + remaining work days + planned einsaetze, show projected end-of-year balance. Helps employees self-manage OT.",
+      "Add sub-categories to taetigkeit (e.g., 'Montage > Bodenplatte', 'Aufmaß > Innenraum') — improves post-job cost allocation and trend analysis.",
+      "Build Plantafel capacity planner — alert if total assigned hours on a project > available budget. Show per-employee utilization % (assigned days / available days)."
+    ]
+  },
+  {
+    "subsystem": "Invoice & Document Management System (Monti.Pro)",
+    "keyFiles": [
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/pages/InvoiceDetail.tsx",
+        "role": "Core invoice/offer/document editor with 4857 lines; handles creation, editing, deletion, PDF generation, storno, payment tracking, and complex document genealogy (parent-child relationships)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/lib/pdfGenerator.ts",
+        "role": "PDF rendering engine (1196 lines); generates invoices, offers, delivery notes, reminders with layout customization; handles timezone-sensitive date formatting and currency calculations"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ImportDisturbanceToInvoiceDialog.tsx",
+        "role": "Disturbance (time report) import into invoices; intentionally avoids state-based race conditions by loading from DB directly"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/src/components/ErrorBoundary.tsx",
+        "role": "Global error boundary; catches unhandled render errors with limited detail exposure"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/supabase/migrations/20260417100000_storno_number_function.sql",
+        "role": "Race-safe storno numbering via DB function; uses MAX selection without true row locking (potential collision risk)"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/tests/deep-workflow.spec.ts",
+        "role": "Integration tests for invoice, offer, firstmeeting, and protocol workflows"
+      },
+      {
+        "path": "/Users/christophnapetschnig/Developer/monti.pro/tests/special-cases.spec.ts",
+        "role": "Tests for double-click protection, invalid inputs, race conditions, character handling, and SQL injection resistance"
+      }
+    ],
+    "reusablePatterns": [
+      "Schema cache miss fallback: Detects Supabase schema cache errors and retries with optional field stripping (InvoiceDetail.tsx:1328-1371). Detects specific error message, then resends with subset of payload. Useful for handling column deprecation during migrations without blocking saves.",
+      "Race-safe DB numbering: Uses Postgres MAX + LOOP with collision check to generate unique invoice/storno numbers (pdfGenerator.ts, InvoiceDetail.tsx:1339-1346). Avoids frontend pre-generation. Pattern: execute RPC function, extract number from result using regex.",
+      "Timezone-safe date handling: Parses dates as local (YYYY-MM-DD) by splitting strings rather than relying on Date constructor; formats with T12:00:00 anchor to prevent off-by-one-day errors from browser timezone shifts (pdfGenerator.ts:38-46).",
+      "Avoid state-based race conditions: Load disturbance details directly from DB rather than relying on component state during selection (ImportDisturbanceToInvoiceDialog.tsx:76-84). Use Promise.all for parallel fetches, update state only once all data is ready.",
+      "Cancelled async effect tracking: Use `let cancelled = false` flag in cleanup to prevent setState on unmounted component during async loads. Prevents memory leak warnings and stale updates in InvoiceDetail async patterns.",
+      "PDF field stripping for schema evolution: Define tolerant columns list and strip unknown fields before DB insert (InvoiceDetail.tsx:1332-1336). Allows progressive schema evolution without breaking saves when new columns added.",
+      "Parent-child invoice chain traversal: Walk parent_invoice_id chain (max 5 hops safety net) to mark ancestor Angebote as 'verrechnet' (InvoiceDetail.tsx:1414-1432). Pattern: loop with cursor, query one level, move cursor up."
+    ],
+    "pitfalls": [
+      "CRITICAL: 4857-line monolithic InvoiceDetail component manages invoice creation, editing, PDF generation, storno, payment tracking, template loading, project integration, and complex state. Makes testing and error isolation difficult. Tests often use waitForTimeout instead of deterministic assertions.",
+      "CRITICAL: Non-atomic storno number generation. Function uses MAX selection loop without true row locking (20260417100000_storno_number_function.sql:14-33). Two concurrent calls could theoretically generate same number; collision check mitigates but doesn't guarantee atomicity.",
+      "HIGH: Timezone handling inconsistency. Mixed use of new Date() (browser timezone), parseISO() (UTC), new Date(dateStr + 'T12:00:00') (local anchor), and toLocaleDateString() (locale-specific). Dates can shift by 1 day depending on user timezone and parsing method used.",
+      "HIGH: Schema cache miss workaround is reactive, not proactive. Code detects cache misses AFTER first save fails, then strips columns and retries (InvoiceDetail.tsx:1328-1375). Assumes tolerant columns are safe to omit, but doesn't validate which columns missing. Silent data loss possible.",
+      "HIGH: No pessimistic locking on invoice edits. Multiple users can edit same invoice simultaneously; last-write-wins overwrites concurrent changes. No version/etag checks or conflict detection.",
+      "MEDIUM: Delete operations lack soft-delete pattern. Invoices and items deleted via hard DELETE (lines 1377, 1969, 2210, 4039-4040). No audit trail, no undo, no soft-delete status. Deletes happen synchronously without user confirmation for complex chains.",
+      "MEDIUM: PDF generation doesn't handle rendering errors gracefully. jsPDF operations wrapped in try-catch but errors logged to console only. No user-facing error message. PDF preview can appear successful while file is corrupted.",
+      "MEDIUM: Extensive use of waitForTimeout in tests (2000-5000ms hardcoded waits). Makes tests slow and brittle; timing varies by system load. Tests flake under CI load.",
+      "MEDIUM: No transaction boundaries for invoice+items saves. Invoice header saved, then items deleted, then re-inserted as separate calls (lines 1350-1399). Network failure between steps leaves invoice inconsistent (items orphaned or missing).",
+      "MEDIUM: Customer selection doesn't validate existence at save time. Invoice can be saved with customer_id pointing to deleted customer. No referential integrity constraint; no validation on save.",
+      "LOW: Error boundary doesn't log to remote service. Render errors caught but only logged to browser console (ErrorBoundary.tsx:29). No error tracking/alerting. Admin never notified of widespread issues.",
+      "LOW: Duplicate button clicks not consistently prevented. setSaving flag prevents re-entry, but disabled attribute only set on some buttons. Fast clickers or network lag can trigger multiple submissions. Tests include explicit double-click test (special-cases.spec.ts:20-47).",
+      "LOW: German variable names throughout codebase (kunde_name, faellig_am, leistungsdatum, ansprechpartner alongside invoice, items). Mixed naming makes searching and documentation harder. Higher cognitive load for developers."
+    ],
+    "dataModel": [
+      "invoices: typ (rechnung/angebot/ar/sr/gutschrift/ab), status (entwurf/offen/bezahlt/teilbezahlt/storniert/verrechnet/angenommen), laufnummer+jahr+user_id for numbering, parent_invoice_id for genealogy chain",
+      "invoice_items: position, menge, einzelpreis, rabatt_prozent, mwst_exempt (for advance deductions), set_template_id (for material sets)",
+      "invoice_payments: tracks partial/full payments; impacts status calculation (bezahlt/teilbezahlt)",
+      "storno_nummer: pattern ST-YYYY-NNN generated by next_storno_nummer() function; used for reversal documents",
+      "Allgemeine Angaben (offer/AB block): leistungsbeschreibung, ausfuehrungsort, ausfuehrungs_kw, ausfuehrende_firma (Angebot/AB only)",
+      "Genealogy chain: parent_invoice_id+typ transitions (Angebot->Rechnung->Anzahlung->Schlussrechnung; Angebot->Gutschrift); status cascade (Angebot->verrechnet when Rechnung created)",
+      "No versioning/locking table; relies on timestamp+user_id for audit, no optimistic locking"
+    ],
+    "recommendations": [
+      "CRITICAL: Refactor 4857-line InvoiceDetail into domain services + hooks. Break into: InvoiceFormState hook (form+calculations), InvoiceRepository (CRUD+genealogy), InvoicePdfService (generation+storage), PaymentService (tracking), StornoService (reversal). Create sub-components: <InvoiceEditor>, <InvoiceViewer>, <InvoicePayments>. Use context for service threading. Result: testable units, clear data flow, easier debugging.",
+      "CRITICAL: Implement optimistic locking for concurrent edits. Add version INT column to invoices. On save, check version=expected_version in WHERE clause. If fails, show merge conflict UI. Prevents last-write-wins data loss. Provides audit trail of who changed what.",
+      "CRITICAL: Use true row locking for storno numbering. Replace MAX loop with SELECT...FOR UPDATE or Postgres SERIAL sequence. Ensures atomic number generation without collisions. Simpler, faster code. Eliminates collision workaround.",
+      "HIGH: Implement soft-delete for invoices and items. Add deleted_at TIMESTAMPTZ and deleted_by UUID columns. Mark as deleted instead of hard DELETE. Show in UI only if admin. Provides undo capability, audit compliance, recovery from accidents.",
+      "HIGH: Wrap invoice+items save in explicit transaction. Use Postgres BEGIN...COMMIT...ROLLBACK or Supabase RPC to save header and items atomically. If items fail, entire invoice rolls back. Guarantees data consistency, no orphaned invoices.",
+      "HIGH: Standardize date handling with timezone-safe library. Use date-fns with explicit locale ('de-AT') and timezone-aware parsing. Audit all format() calls. Add tests for different user timezones. Never use new Date() for dates from DB. Eliminates off-by-one-day errors.",
+      "HIGH: Replace waitForTimeout in tests with deterministic assertions. Use Playwright waitFor(), locator.waitFor(), page.waitForLoadState('networkidle'), and explicit element checks instead of sleep. Each test <30s. Result: fast, reliable, no flakes.",
+      "HIGH: Add remote error logging and alerting. Send ErrorBoundary catches, console.error, and API errors to Sentry or similar. Alert admin on error spike. Attach user context and page info. Provides visibility into production issues.",
+      "MEDIUM: Validate referential integrity on save. Before saving invoice, query customers/projects to verify FK exists. Add DB constraints (ON DELETE RESTRICT for active invoices). Prevents orphaned references, clear error if customer deleted.",
+      "MEDIUM: Use deterministic PDF generation with fixed layout engine. Replace jsPDF with pdfkit+node or headless browser rendering. Test PDF output pixel-by-pixel. Verify generated files readable. Eliminates corrupt PDFs, consistent output.",
+      "MEDIUM: Remove schema cache miss workaround and enforce migration-first deployment. Require database migrations to complete before code release. Use automatic schema polling to detect missing columns and fail fast. Never silently strip fields.",
+      "MEDIUM: Consolidate naming: standardize on German or English across entire codebase. Choose one language for all column names, functions, types. E.g., rename kunde_name -> customer_name, faellig_am -> due_date. Update DB schema, types, API, components together.",
+      "MEDIUM: Create invoice state machine with explicit transitions. Define legal status transitions (entwurf->offen->[bezahlt|teilbezahlt|storniert]). Validate status change before save. Prevent invalid sequences. Eliminates invalid states, clear business logic.",
+      "LOW: Add structured logging for all invoice operations. Log save, delete, storno, payment with invoice ID, user, timestamp, old+new values. Searchable logs. Helps forensics on reconciliation issues and customer disputes."
+    ]
+  }
+]

@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Designsystem laut Anforderungsdokument (Abschnitt 19):
+   - Flat-Design, dunkle Seitenleiste + heller Arbeitsbereich
+   - Akzent-/Aktionsfarbe: kräftiges Grün (Default #71c837),
+     zur Laufzeit über "Seitendarstellung" überschreibbar
+   - Grau = neutral, Blau = Link, Rot/Orange = Warnung/Löschen
+   - Serifenlose Schrift (Arial/Helvetica-ähnlich), große dünne
+     Überschriften, graue Untertitel, Outline-Icons, Status-Pills
+   Alle Farben als HSL.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Heller Arbeitsbereich: sehr helles Grau, Karten weiß */
+    --background: 220 14% 96%;
+    --foreground: 0 0% 13%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 13%;
+
+    /* Aktionsfarbe Grün #71c837 ≈ hsl(96 57% 50%) — Hauptaktion/aktiv */
+    --primary: 96 57% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Neutrale Sekundärfläche (graue Buttons) */
+    --secondary: 220 13% 94%;
+    --secondary-foreground: 0 0% 20%;
+
+    --muted: 220 13% 95%;
+    --muted-foreground: 0 0% 45%;
+
+    /* Hover-/Akzentfläche: dezentes Grau (Grün ist die Aktionsfarbe) */
+    --accent: 220 13% 93%;
+    --accent-foreground: 0 0% 18%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 96 57% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 32 95% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Links / klickbare Werte = Blau */
+    --link: 211 100% 43%;
+
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 96 57% 50%;
+
+    --radius: 0.5rem;
+
+    /* Dunkle Seitenleiste (Anthrazit/nahezu Schwarz) */
+    --sidebar-background: 222 18% 12%;
+    --sidebar-foreground: 0 0% 78%;
+    --sidebar-primary: 96 57% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 14% 18%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 222 14% 20%;
+    --sidebar-ring: 96 57% 50%;
+
+    /* Aktiver Menüpunkt: dunkelgrüne Fläche + heller grüner Balken */
+    --sidebar-active-bg: 96 35% 18%;
+    --sidebar-active-bar: 96 60% 55%;
+    --sidebar-active-fg: 96 60% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Helvetica, Arial, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Große, dünne Überschriften laut Designspezifikation */
+  h1 {
+    @apply text-2xl;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    @apply text-xl;
+    font-weight: 400;
+  }
+  h3, h4, h5, h6 {
+    font-weight: 500;
+  }
+}
+
+@layer components {
+  /* Blaue, klickbare Werte (Kundennummern, IDs, Namen) */
+  .link-value {
+    @apply cursor-pointer hover:underline;
+    color: hsl(var(--link));
+  }
+}
+
+@layer utilities {
+  .text-link { color: hsl(var(--link)); }
+  .bg-success { background-color: hsl(var(--success)); }
+  .text-success { color: hsl(var(--success)); }
+  .bg-warning { background-color: hsl(var(--warning)); }
+  .text-warning { color: hsl(var(--warning)); }
+}
