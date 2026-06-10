@@ -1,4 +1,5 @@
 import { useMemo, useState, ReactNode } from "react";
+import * as XLSX from "xlsx";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -6,8 +7,12 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Loader2, Download, SlidersHorizontal } from "lucide-react";
 
 export interface Column<T> {
   key: string;
@@ -28,15 +33,18 @@ interface DataTableProps<T> {
   getRowId?: (row: T) => string;
   emptyText?: string;
   toolbar?: ReactNode;
+  exportName?: string;
 }
 
 const PAGE_SIZES = [25, 50, 100, 250];
 
 export function DataTable<T>({
-  data, columns, loading, onRowClick, getRowId, emptyText = "Keine passenden Einträge gefunden", toolbar,
+  data, columns: allColumns, loading, onRowClick, getRowId, emptyText = "Keine passenden Einträge gefunden", toolbar, exportName = "Export",
 }: DataTableProps<T>) {
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(0);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const columns = useMemo(() => allColumns.filter((c) => !hidden.has(c.key)), [allColumns, hidden]);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -87,6 +95,20 @@ export function DataTable<T>({
 
   const hasFilterRow = columns.some((c) => c.filterable);
 
+  const doExport = () => {
+    const header = columns.map((c) => c.header);
+    const rows = filtered.map((r) =>
+      columns.map((c) => {
+        const v = c.accessor ? c.accessor(r) : (r as Record<string, unknown>)[c.key];
+        return v == null || typeof v === "object" ? "" : (v as string | number);
+      }),
+    );
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Export");
+    XLSX.writeFile(wb, `${exportName}.xlsx`);
+  };
+
   return (
     <div className="space-y-3">
       {/* Steuerleiste */}
@@ -103,7 +125,32 @@ export function DataTable<T>({
           <span className="ml-2 font-medium text-foreground">{total}</span>
           <span>Einträge gefunden</span>
         </div>
-        {toolbar && <div className="flex items-center gap-2">{toolbar}</div>}
+        <div className="flex items-center gap-2">
+          {toolbar}
+          <Button variant="secondary" size="sm" className="h-8 gap-1.5" onClick={doExport} disabled={!filtered.length}>
+            <Download className="h-4 w-4" /> Export
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="icon" className="h-8 w-8" title="Spalten">
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+              <DropdownMenuLabel>Spalten</DropdownMenuLabel>
+              {allColumns.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.key}
+                  checked={!hidden.has(c.key)}
+                  onCheckedChange={(v) => setHidden((h) => { const n = new Set(h); if (v) n.delete(c.key); else n.add(c.key); return n; })}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {c.header || c.key}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Tabelle */}

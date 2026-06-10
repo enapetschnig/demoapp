@@ -175,8 +175,10 @@ export function AppSidebar({ collapsed, onToggle, onOpenSearch }: { collapsed: b
           {!collapsed && <span>Einklappen</span>}
         </button>
         {!collapsed && (
-          <div className="mt-1 flex gap-2 px-2 text-[10px] text-sidebar-foreground/40">
-            <span>AGB</span><span>Datenschutz</span><span>Impressum</span>
+          <div className="mt-1 flex gap-3 px-2 text-[10px] text-sidebar-foreground/40">
+            <a href="#" className="cursor-pointer hover:text-sidebar-foreground/70 hover:underline">AGB</a>
+            <a href="#" className="cursor-pointer hover:text-sidebar-foreground/70 hover:underline">Datenschutz</a>
+            <a href="#" className="cursor-pointer hover:text-sidebar-foreground/70 hover:underline">Impressum</a>
           </div>
         )}
       </div>

@@ -22,8 +22,11 @@ export interface CalcResult {
   vatTotal: number;
   gross: number;
   ekTotal: number;
+  ekMaterial: number;
+  ekLabor: number;
   profit: number;
   workMinutes: number;
+  hourlyRate: number;
   articleCount: number;
   serviceCount: number;
 }
@@ -59,13 +62,17 @@ export function calcDocument(
     .sort((a, b) => b.rate - a.rate);
   const vatTotal = r2(vatGroups.reduce((s, g) => s + g.vat, 0));
 
-  const ekTotal = r2(billable.reduce((s, i) => s + (i.purchase_price ?? 0) * (i.quantity ?? 0), 0));
+  const ekMaterial = r2(items.filter((i) => i.kind === "artikel").reduce((s, i) => s + (i.purchase_price ?? 0) * (i.quantity ?? 0), 0));
+  const ekLabor = r2(items.filter((i) => i.kind === "leistung").reduce((s, i) => s + (i.purchase_price ?? 0) * (i.quantity ?? 0), 0));
+  const ekTotal = r2(ekMaterial + ekLabor);
   const workMinutes = items.filter((i) => i.kind === "leistung").reduce((s, i) => s + (i.time_minutes ?? 0) * (i.quantity ?? 0), 0);
+  const workHours = workMinutes / 60;
 
   return {
     positionsNet, docDiscount, net, vatGroups, vatTotal,
     gross: r2(net + vatTotal),
-    ekTotal, profit: r2(net - ekTotal), workMinutes,
+    ekTotal, ekMaterial, ekLabor, profit: r2(net - ekTotal), workMinutes,
+    hourlyRate: workHours > 0 ? r2(net / workHours) : 0,
     articleCount: items.filter((i) => i.kind === "artikel").length,
     serviceCount: items.filter((i) => i.kind === "leistung").length,
   };

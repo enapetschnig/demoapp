@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import { fmtDateTime } from "@/lib/format";
 import { useOrders, useUpsertOrder, type Order } from "@/hooks/queries/useOrders";
 import { useContacts } from "@/hooks/queries/useContacts";
 import { useTaskProfiles } from "@/hooks/queries/useTasks";
-import { Plus } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 
 const NONE = "__none__";
 
@@ -194,6 +195,7 @@ function OrderDialog({ open, onOpenChange, order }: { open: boolean; onOpenChang
 }
 
 export default function Auftraege() {
+  const navigate = useNavigate();
   const { data = [], isLoading } = useOrders();
   const { data: contacts = [] } = useContacts();
   const { data: profiles = [] } = useTaskProfiles();
@@ -246,6 +248,22 @@ export default function Auftraege() {
     {
       key: "start_at", header: "Termin",
       render: (r) => (r.start_at ? fmtDateTime(r.start_at) : "—"),
+    },
+    {
+      key: "actions", header: "", sortable: false, className: "text-right",
+      render: (r) => (
+        <Button
+          size="sm" variant="secondary" className="gap-1.5"
+          onClick={(e) => {
+            e.stopPropagation();
+            const q = new URLSearchParams({ type: "rechnung" });
+            if (r.customer_id) q.set("customer", r.customer_id);
+            navigate(`/dokumente/neu?${q.toString()}`);
+          }}
+        >
+          <FileText className="h-4 w-4" /> Rechnung
+        </Button>
+      ),
     },
   ];
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,8 @@ import {
   useMaintenanceContracts, useUpsertMaintenanceContract, useTeamMembers,
   type MaintenanceContract,
 } from "@/hooks/queries/useMaintenance";
-import { Plus } from "lucide-react";
+import { useUpsertOrder } from "@/hooks/queries/useOrders";
+import { Plus, Briefcase } from "lucide-react";
 
 const UNITS = [
   { v: "jahre", l: "Jahre" },
@@ -214,9 +216,23 @@ function ContractDialog({
 }
 
 export default function Wartungsvertraege() {
+  const navigate = useNavigate();
   const { data = [], isLoading } = useMaintenanceContracts();
+  const createOrder = useUpsertOrder();
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<MaintenanceContract | null>(null);
+
+  const toOrder = async (c: MaintenanceContract) => {
+    try {
+      await createOrder.mutateAsync({
+        title: `Wartung: ${c.name}`, type: "wartung", status: "offen",
+        customer_id: c.customer_id ?? null, assigned_to: c.assigned_to ?? null,
+        description: `Aus Wartungsvertrag erzeugt (${c.name}).`,
+      });
+      toast.success("Auftrag aus Wartungsvertrag erstellt");
+      navigate("/auftraege");
+    } catch (e) { toast.error((e as Error).message); }
+  };
 
   const columns: Column<MaintenanceContract>[] = [
     {
@@ -256,6 +272,14 @@ export default function Wartungsvertraege() {
         <Badge variant={statusVariant(r.status)}>
           {STATUS_LABEL[r.status ?? ""] ?? r.status ?? "—"}
         </Badge>
+      ),
+    },
+    {
+      key: "actions", header: "", sortable: false, className: "text-right",
+      render: (r) => (
+        <Button size="sm" variant="secondary" className="gap-1.5" onClick={(e) => { e.stopPropagation(); toOrder(r); }}>
+          <Briefcase className="h-4 w-4" /> Auftrag
+        </Button>
       ),
     },
   ];

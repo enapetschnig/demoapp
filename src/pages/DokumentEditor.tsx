@@ -9,7 +9,8 @@ import {
 } from "@/hooks/queries/useDocuments";
 import { calcDocument, lineNet, type CalcItem } from "@/lib/documentCalculations";
 import { useDocTemplate, useCreateDocTemplate } from "@/hooks/queries/useDocTemplates";
-import { downloadDocumentPdf, type PdfItem } from "@/lib/documentPdf";
+import { downloadDocumentPdf, buildDocumentHtml, type PdfItem, type PdfData } from "@/lib/documentPdf";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DOC_TYPES, getDocConfig, docLabel } from "@/lib/documentTypes";
 import { fmtEUR, fmtNumber, toISODate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, CheckCircle2, FileDown, Plus, Trash2, Search, Loader2, BookmarkPlus } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2, FileDown, Plus, Trash2, Search, Loader2, BookmarkPlus, MoreHorizontal } from "lucide-react";
 
 interface EItem {
   key: string; kind: "artikel" | "leistung" | "titel" | "text";
@@ -63,6 +64,7 @@ export default function DokumentEditor() {
   const [initialized, setInitialized] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"entwurf" | "vorschau">("entwurf");
 
   // Standard-Textbausteine laden
   const { data: texts = [] } = useQuery({
@@ -173,48 +175,64 @@ export default function DokumentEditor() {
     } catch (e) { toast.error((e as Error).message); }
   };
 
+  const buildPdfData = (): PdfData => {
+    const rawLayout = (docTypeRows.find((t) => t.base_type === baseType)?.layout ?? {}) as Record<string, unknown>;
+    const numOr = (v: unknown) => (v == null || v === "" ? undefined : Number(v));
+    const pdfLayout = {
+      marginTop: numOr(rawLayout.margin_top), marginLeft: numOr(rawLayout.margin_left),
+      marginBottom: numOr(rawLayout.margin_bottom), marginRight: numOr(rawLayout.margin_right),
+      fontFamily: (rawLayout.font_family as string) || undefined,
+      footer: (rawLayout.footer as string) || undefined,
+      showDescription: rawLayout.show_position_description !== false,
+    };
+    const hidePrices = rawLayout.hide_unit_prices === true;
+    let pos = 0;
+    const pdfItems: PdfItem[] = items.map((i) => ({
+      position: i.kind === "titel" ? 0 : ++pos, name: i.name, description: i.description,
+      quantity: i.quantity, unit: i.unit, unit_price: i.unit_price, line_net: lineNet(i), kind: i.kind,
+    }));
+    return {
+      company: {
+        name: company?.name ?? "Mein Betrieb", street: company?.address_street ?? undefined,
+        zip: company?.address_zip ?? undefined, city: company?.address_city ?? undefined,
+        phone: company?.phone ?? undefined, logo_url: company?.logo_url,
+        iban: company?.iban ?? undefined, bic: company?.bic ?? undefined, vat_id: company?.vat_id ?? undefined,
+      },
+      recipient: {
+        name: [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || customer?.company_name || "",
+        company: customer?.type === "firma" ? customer?.company_name ?? undefined : undefined,
+        street: customer?.address_street ?? undefined, zip: customer?.address_zip ?? undefined,
+        city: customer?.address_city ?? undefined, customerNumber: customer?.customer_number ?? undefined,
+        email: customer?.email ?? undefined, mobile: customer?.mobile ?? customer?.phone ?? undefined,
+      },
+      docTitle: docLabel(baseType), number: number ?? "ENTWURF",
+      date: new Intl.DateTimeFormat("de-AT").format(new Date(`${docDate}T12:00:00`)),
+      subject, introHtml: introText, outroHtml: outroText,
+      items: pdfItems, calc,
+      showPrices: cfg.showPositions && baseType !== "lieferschein" && !hidePrices,
+      layout: pdfLayout,
+    };
+  };
+
   const exportPdf = async () => {
     setPdfBusy(true);
     try {
-      const rawLayout = (docTypeRows.find((t) => t.base_type === baseType)?.layout ?? {}) as Record<string, unknown>;
-      const numOr = (v: unknown) => (v == null || v === "" ? undefined : Number(v));
-      const pdfLayout = {
-        marginTop: numOr(rawLayout.margin_top), marginLeft: numOr(rawLayout.margin_left),
-        marginBottom: numOr(rawLayout.margin_bottom), marginRight: numOr(rawLayout.margin_right),
-        fontFamily: (rawLayout.font_family as string) || undefined,
-        footer: (rawLayout.footer as string) || undefined,
-        showDescription: rawLayout.show_position_description !== false,
-      };
-      const hidePrices = rawLayout.hide_unit_prices === true;
-      let pos = 0;
-      const pdfItems: PdfItem[] = items.map((i) => ({
-        position: i.kind === "titel" ? 0 : ++pos, name: i.name, description: i.description,
-        quantity: i.quantity, unit: i.unit, unit_price: i.unit_price,
-        line_net: lineNet(i),
-        kind: i.kind,
-      }));
-      await downloadDocumentPdf({
-        company: {
-          name: company?.name ?? "Mein Betrieb", street: company?.address_street ?? undefined,
-          zip: company?.address_zip ?? undefined, city: company?.address_city ?? undefined,
-          phone: company?.phone ?? undefined, logo_url: company?.logo_url,
-          iban: company?.iban ?? undefined, bic: company?.bic ?? undefined, vat_id: company?.vat_id ?? undefined,
-        },
-        recipient: {
-          name: [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || customer?.company_name || "",
-          company: customer?.type === "firma" ? customer?.company_name ?? undefined : undefined,
-          street: customer?.address_street ?? undefined, zip: customer?.address_zip ?? undefined,
-          city: customer?.address_city ?? undefined, customerNumber: customer?.customer_number ?? undefined,
-        },
-        docTitle: docLabel(baseType), number: number ?? "ENTWURF",
-        date: new Intl.DateTimeFormat("de-AT").format(new Date(`${docDate}T12:00:00`)),
-        subject, introHtml: introText, outroHtml: outroText,
-        items: pdfItems, calc,
-        showPrices: cfg.showPositions && baseType !== "lieferschein" && !hidePrices,
-        layout: pdfLayout,
-      }, `${docLabel(baseType)}_${number ?? "Entwurf"}.pdf`);
+      await downloadDocumentPdf(buildPdfData(), `${docLabel(baseType)}_${number ?? "Entwurf"}.pdf`);
     } catch (e) { toast.error("PDF-Fehler: " + (e as Error).message); }
     finally { setPdfBusy(false); }
+  };
+
+  // Preise aus dem Artikelstamm aktualisieren
+  const refreshPrices = async () => {
+    const articleIds = items.filter((i) => i.article_id).map((i) => i.article_id!) as string[];
+    if (!articleIds.length) return toast.info("Keine Artikel-Positionen zum Aktualisieren.");
+    const { data } = await supabase.from("articles").select("id,sale_price,purchase_price").in("id", articleIds);
+    const byId = new Map((data ?? []).map((a) => [a.id, a]));
+    setItems((arr) => arr.map((i) => {
+      const a = i.article_id ? byId.get(i.article_id) : undefined;
+      return a ? { ...i, unit_price: Number(a.sale_price ?? i.unit_price), purchase_price: Number(a.purchase_price ?? i.purchase_price) } : i;
+    }));
+    toast.success("Preise aus Artikelstamm aktualisiert");
   };
 
   const saveAsTemplate = async () => {
@@ -241,9 +259,16 @@ export default function DokumentEditor() {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => navigate("/dokumente")}>
-          <ArrowLeft className="h-4 w-4" /> Dokumente
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => navigate("/dokumente")}>
+            <ArrowLeft className="h-4 w-4" /> Dokumente
+          </Button>
+          {/* Ansichts-Reiter Entwurf / PDF-Vorschau */}
+          <div className="flex overflow-hidden rounded-md border text-sm">
+            <button className={`px-3 py-1.5 ${view === "entwurf" ? "bg-secondary font-medium" : "bg-card"}`} onClick={() => setView("entwurf")}>Entwurf</button>
+            <button className={`px-3 py-1.5 ${view === "vorschau" ? "bg-secondary font-medium" : "bg-card"}`} onClick={() => setView("vorschau")}>PDF-Vorschau</button>
+          </div>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {number && <Badge variant="default">{number}</Badge>}
           <Badge variant="secondary">{status}</Badge>
@@ -253,9 +278,17 @@ export default function DokumentEditor() {
           <Button variant="secondary" className="gap-1.5" onClick={exportPdf} disabled={pdfBusy}>
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} PDF
           </Button>
-          <Button variant="secondary" className="gap-1.5" onClick={saveAsTemplate} disabled={createTemplate.isPending}>
-            <BookmarkPlus className="h-4 w-4" /> Als Vorlage
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="icon" className="h-9 w-9" title="Mehr"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={refreshPrices}>Preise aktualisieren</DropdownMenuItem>
+              <DropdownMenuItem onClick={saveAsTemplate}>Als Vorlage speichern</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/dokumente/konfigurator")}>Layout-Einstellungen</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/dokumente/texte")}>Texte & Titel</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {!isFinalized && (
             <Button className="gap-1.5" onClick={doFinalize} disabled={finalize.isPending}>
               <CheckCircle2 className="h-4 w-4" /> Dokument abschließen
@@ -264,7 +297,13 @@ export default function DokumentEditor() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+      {view === "vorschau" && (
+        <Card className="p-6">
+          <div className="mx-auto max-w-[210mm] bg-white" dangerouslySetInnerHTML={{ __html: buildDocumentHtml(buildPdfData()) }} />
+        </Card>
+      )}
+
+      <div className={`grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px] ${view === "vorschau" ? "hidden" : ""}`}>
         {/* Dokumentvorschau / Bearbeitung */}
         <Card className="space-y-4 p-6">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -425,10 +464,12 @@ export default function DokumentEditor() {
               <Row l="Positionen" v={String(calc.articleCount + calc.serviceCount)} />
               <Row l="Artikel" v={String(calc.articleCount)} />
               <Row l="Leistungen" v={String(calc.serviceCount)} />
-              <Row l="EK Material" v={fmtEUR(calc.ekTotal)} />
+              <Row l="EK Material" v={fmtEUR(calc.ekMaterial)} />
+              <Row l="EK Lohn" v={fmtEUR(calc.ekLabor)} />
               <Row l="Arbeitszeit" v={`${fmtNumber(calc.workMinutes / 60, 1)} h`} />
               <Row l="Gesamt netto" v={fmtEUR(calc.net)} />
               <Row l="Ertrag" v={fmtEUR(calc.profit)} />
+              <Row l="Stundensatz" v={fmtEUR(calc.hourlyRate)} />
               <Row l="Gesamt brutto" v={fmtEUR(calc.gross)} bold />
             </div>
           </Card>

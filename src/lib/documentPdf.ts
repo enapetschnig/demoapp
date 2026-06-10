@@ -3,7 +3,7 @@ import type { CalcResult } from "./documentCalculations";
 
 export interface PdfRecipient {
   name: string; company?: string; street?: string; zip?: string; city?: string;
-  customerNumber?: string; email?: string; mobile?: string;
+  customerNumber?: string; email?: string; mobile?: string; contactPerson?: string;
 }
 export interface PdfCompany {
   name: string; street?: string; zip?: string; city?: string;
@@ -92,6 +92,9 @@ export function buildDocumentHtml(d: PdfData): string {
         <tr><td style="color:#666;padding-right:12px">${esc(d.docTitle)}-Nr.</td><td style="font-weight:bold">${esc(d.number)}</td></tr>
         <tr><td style="color:#666">Datum</td><td>${esc(d.date)}</td></tr>
         ${d.recipient.customerNumber ? `<tr><td style="color:#666">Kundennr.</td><td>${esc(d.recipient.customerNumber)}</td></tr>` : ""}
+        ${d.recipient.contactPerson ? `<tr><td style="color:#666">Ansprechpartner</td><td>${esc(d.recipient.contactPerson)}</td></tr>` : ""}
+        ${d.recipient.mobile ? `<tr><td style="color:#666">Mobil</td><td>${esc(d.recipient.mobile)}</td></tr>` : ""}
+        ${d.recipient.email ? `<tr><td style="color:#666">E-Mail</td><td>${esc(d.recipient.email)}</td></tr>` : ""}
       </table>
     </div>
     ${d.subject ? `<div style="margin-top:24px;font-weight:bold;font-size:14px">BV: ${esc(d.subject)}</div>` : ""}
