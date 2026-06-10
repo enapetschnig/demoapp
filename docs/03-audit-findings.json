@@ -1,0 +1,986 @@
+[
+  {
+    "module": "Dokumente/Rechnungen/Angebote (Dokumentenmodul)",
+    "coverage": "teilweise",
+    "present": [
+      "Dokumentenübersicht (Dokumente.tsx) mit Tabelle: #, Name, Typ, Kunde, Nettobetrag, Bruttobetrag, Datum, Status",
+      "Dokumenttypen-Filter (angebot, arbeitsbericht, aufmassdokument, auftragsbestaetigung, baustellenbericht, bestellschein, brief, gutschrift, kalkulation, lieferschein, mahnung, rechnung, rechnung_13b, reparaturauftrag, stornorechnung, wartungsauftrag)",
+      "Dokumentstatus-Labels (entwurf, import_erforderlich, in_bearbeitung, erstellt, versendet, erneut_versendet, angenommen, abgelehnt, storniert, geloescht)",
+      "Dokumenteneditor (DokumentEditor.tsx) mit 3-Bereich-Layout: Kopfleiste, Dokumentvorschau, rechtes Panel",
+      "Oberleiste mit Reitern Entwurf/PDF-Vorschau, Icon-Buttons (Speichern, Undo/Redo)",
+      "Grüner Button 'Dokument abschließen' mit Nummernvergabe (finalize_document RPC)",
+      "Kundenauswahl, Dokumenttyp, Datum, Betreff (BV-Feld)",
+      "Rich-Text-Editor für Einleitung und Schlusstext mit Formatierungsleiste (Schrift, Fett, Unterstrichen, Textfarbe, Aufzählung, Nummerierung, Tabelle, Bilder, Link)",
+      "Positionsliste mit Inline-Bearbeitung: Menge, Einheit, Bezeichnung, Einzelpreis, MwSt., Gesamt",
+      "Drag-and-drop Reorder via updateItem/removeItem",
+      "Artikel/Leistung hinzufügen-Buttons",
+      "Summen live berechnet: Nettobetrag, MwSt.-Gruppen, Gesamtsumme (mit korrekter Mischsteuer-Logik)",
+      "Texte & Titel Seite (TexteTitel.tsx) mit zwei Reitern TEXTE und TITEL",
+      "Dialog zum Erstellen/Bearbeiten von Textbausteinen mit Titel, Dokumenttyp, Platzierung (Einleitung/Abschluss), Content (RichTextEditor)",
+      "Vordefinierte Textbausteine abrufbar (via useDocumentTexts Query)",
+      "Vorlagen-Seite (Vorlagen.tsx) mit Platzhalter-UI (noch nicht backend-angebunden)",
+      "Konfigurator (Konfigurator.tsx) mit Dokumenttyp-Verwaltung: Name, Status, Standardordner, Bewegtes-Projekt-zu-Phase, Nummernkreis-Integration",
+      "Datenbasis: SQL-Trigger für Positions-Netto (set_item_line_net), Dokumentsummen-Recompute (recompute_document_totals), atomares save_document mit all Items in 1 Transaktion",
+      "Finalize-Logic (finalize_document): Nummer aus Nummernkreis, Status='erstellt', Snapshots für Empfänger/Firma/Layout, Pipeline-Automatik (move_project_to_step_id), Logbuch-Einträge",
+      "RLS: company_id Check auf alle Abfragen",
+      "PDF-Export (downloadDocumentPdf) mit HTML2PDF, zeigt Brief-Layout mit Sender, Empfänger, Infoblock, Positionen, Summen, Footer",
+      "Dokumententext-Interpolation (interpolateText Funktion) mit {{path}} Syntax",
+      "Platzhalter wie {{ReferenceDocument.nr}}, {{ReferenceDocument.date}}, {{ReferenceDocument.brutto}}, {{Customer.title_full_name}}, {{Company.name}} sind in Code vorhanden"
+    ],
+    "gaps": [
+      "Aufschlag-Spalte in Positionstabelle FEHLT (Anforderung 21.4/36.2: 'Pos, Menge, Einheit, Bezeichnung, Einheitspreis, Aufschlag, Gesamt')",
+      "Rabatt pro Position (discount_percent) existiert in Datenbank/Berechnung, ist aber in Editor-UI nicht editierbar (nur discount_percent auf Dokument-Level sichtbar)",
+      "Summenblock in Editor-Vorschau FEHLT interne Kalkulation: keine Anzeige von 'EK Gesamt, EK Material, EK Lohn, Arbeitszeit, Rabatt, Aufschlag (Euro), Aufschlag (%)' laut Anforderung 21.4",
+      "Drag-and-Drop zum Verschieben von Positionen nicht implementiert (Anforderung 21.4: 'Anfasser zum Verschieben')",
+      "Vorlagen-Funktionalität nicht implementiert (Vorlagen.tsx nur mit Platzhalter-Daten, kein Backend)",
+      "Dokumenttyp-Konfiguration (Konfigurator) unvollständig: nur Name, Status, Ordner, Pipeline-Phase; fehlt: Layout-Einstellungen (Seitenränder, Schriftgrößen, Positionen-Checkboxen laut 6.5 / 20.2)",
+      "PDF-Vorschau-Button existiert nicht in der UI (nur PDF-Export-Button)",
+      "Versionshistorie (Uhr-Icon) nicht implementiert (Anforderung 21.3/36.1)",
+      "Einstellungen-Dialog fehlt vollständig (Anforderung 21.9: Layout-Reiter VERSIONEN, ALLGEMEINE GESTALTUNG, ERSTE SEITE, FOLGESEITEN)",
+      "Mehrwertsteuer-Dialog (MwSt.-Button) nicht implementiert (Anforderung 21.3)",
+      "IDS Connect, UGL-Export/Import, GAEB-Import, OpenTrans Import nicht implementiert (Anforderung 21.3)",
+      "Preise aktualisieren-Dialog nicht implementiert (Anforderung 21.3: Euro-Button)",
+      "Gliederung/Strukturübersicht rechts nur im Code vorhanden, nicht in UI erkennbar",
+      "Positionenliste-Icon (Listen-Icon) nicht sichtbar in Werkzeugleiste",
+      "Bearbeitungsmodus-Stift nicht implementiert",
+      "Artikel-Dialog 'Artikel erstellen' nicht vollständig (Anforderung 6.4: INFORMATIONEN, KALKULATION, HISTORIE Reiter)",
+      "Textbausteine-Dialog zeigt Placement-Select, aber keine Dokumenttyp-Filterung (BASE_TYPES hart-codiert statt dynamisch aus DOC_TYPES)",
+      "{{Customer.title_full_name}}, {{Partner.full_name}}, {{CustomerDocument.due_time}}, {{CustomerDocument.discount_time}} Platzhalter in Doc erwähnt, aber Integration unklar",
+      "Kundendocument-Snapshot nach Finalize nicht dokumentiert / nicht getestet (recipient_snapshot vorhanden, aber Nutzung für Korrekturverhinderung?)",
+      "Lagerverwaltung / Bestandsverwaltung fehlt vollständig",
+      "Textbausteine: Keine Liste mit 25+ vordefinierten Beispielen sichtbar (TexteTitel.tsx zeigt 'Noch keine Vorlagen', Platzhalter)",
+      "Dokumentenordner-Integration (Ordner-Dropdown in Konfigurator vorhanden, aber nicht in Editor Dokumenttyp-Auswahl)"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/DokumentEditor.tsx",
+        "desc": "Rabattfeld (discountPercent) wird geladen und gespeichert, ist aber in der UI nicht editierbar. Nutzer können dokumentweite Rabatte nicht eingeben. Zeile 55 definiert discountPercent, aber keine Input-Komponente dafür in der 'Positionen'-Section (ab Zeile 235)",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/DokumentEditor.tsx",
+        "desc": "Aufschlag-Spalte in der Positionstabelle nicht implementiert. Anforderung 21.4/36.2 verlangt Spalten 'Einheitspreis, Aufschlag, Gesamt', aber nur 'Einzelpreis, MwSt, Gesamt' vorhanden. Zeile 249-251: Tabellen-Header fehlt 'Aufschlag'-th",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/DokumentEditor.tsx",
+        "desc": "Drag-and-drop zum Reorder von Positionen nicht implementiert. Anforderung 21.4: 'rechts an jeder Zeile gibt es einen Anfasser zum Verschieben (Drag-and-drop der Reihenfolge)'. Code nutzt nur Array-Index (idx), nicht sort_order aus DB",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/DokumentEditor.tsx",
+        "desc": "Interne Kalkulations-Summen nicht in Vorschau angezeigt. Anforderung 21.4: 'Summenblock mit Spalten EK Gesamt, EK Material, EK Lohn, Arbeitszeit, Rabatt, Aufschlag (Euro), Aufschlag (%)'. Rechts zeigt nur Übersicht, nicht den kalkulativen Summenblock",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/dokumente/Konfigurator.tsx",
+        "desc": "Layout-Einstellungen (Reiter 6.5 / 20.2) nicht implementiert. ConfigDialog behandelt nur Name, Status, Ordner, Pipeline-Phase, booking_relevant. Fehlen: Seitenränder, Hauptblock-Abstand, Schriftgröße, Schriftart, Grundlayout (Klassik/Modern), Fußzeile-Modus, Positionen-Checkboxen (15+ Items), ERSTE SEITE / FOLGESEITEN Reiter",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/dokumente/TexteTitel.tsx",
+        "desc": "BASE_TYPES hart-codiert (Zeile 23-30) mit nur 6 Einträgen statt dynamisch aus DOC_TYPES. Fehlen: arbeitsbericht, aufmassdokument, auftragsbestaetigung, baustellenbericht, bestellschein, brief, kalkulation, lieferschein, mahnung, reparaturauftrag, stornorechnung, wartungsauftrag",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/dokumente/Vorlagen.tsx",
+        "desc": "Vorlagen-Modul nur mit Platzhalter-Daten (PLACEHOLDER). Keine Backend-Integration, keine Speicher-Funktion, keine Wiederverwendung existierender Dokumente. Anforderung 6.7 / 31.3 völlig unerfüllt",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/lib/documentCalculations.ts",
+        "desc": "Rabatt pro Position (discount_percent) ist berechnet (Zeile 32, lineNet-Funktion), wird aber in Editor nicht in Input-Feld angezeigt. Summenblock zeigt keine Positions-Rabatte auf",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/supabase/migrations/0003_document_engine.sql",
+        "desc": "Spalte 'markup_percent' wird in document_items eingespeichert (Zeile 171), aber in Client-Berechnung/Editor nicht verwendet. Aufschlag-Logik unvollständig",
+        "severity": "mittel"
+      }
+    ],
+    "improvements": [
+      "Rabattfeld für dokumentweite Rabatte in Editor-UI hinzufügen (Input-Feld für discountPercent mit live Neuberechnung)",
+      "Aufschlag-Spalte in Positionstabelle hinzufügen (mit Inline-Bearbeitung für markup_percent pro Position)",
+      "Drag-and-drop für Positionen-Reorder implementieren (SortableJS oder ähnlich, mit sort_order Persistierung)",
+      "Interne Kalkulationssummen im Editor anzeigen: EK-Gesamtwerte, Arbeitszeit-Summe, Ertrag, Stundensatz",
+      "Layout-Einstellungen (Konfigurator Reiter 'Allgemeine Gestaltung', 'Erste Seite', 'Folgeseiten') vollständig implementieren mit Live-PDF-Vorschau",
+      "Vorlagen-Backend implementieren: Speichern ganzer Dokumente als Vorlagen, Wiederverwendung, Last-Used Tracking",
+      "PDF-Vorschau-Reiter funktionsfähig machen (aktuell nur Entwurf-Reiter aktiv)",
+      "Versionshistorie-Dialog implementieren (Uhr-Icon, Liste früherer Versionen mit Rollback)",
+      "Einstellungs-Dialog vollständig mit allen Reitern (VERSIONEN, ALLGEMEINE GESTALTUNG, ERSTE SEITE, FOLGESEITEN)",
+      "Mehrwertsteuer-Dialog mit Steuersatz-Verwaltung pro Position",
+      "IDS Connect, GAEB-Import, UGL-Export/Import, OpenTrans-Import integrieren",
+      "Artikel-Dialog mit 3 Reitern (INFORMATIONEN, KALKULATION, HISTORIE) erweitern",
+      "TexteTitel: BASE_TYPES dynamisch aus DOC_TYPES generieren, alle 16 Dokumenttypen unterstützen",
+      "Textbausteine-Seeding: ~25 vordefinierte Bausteine pro Dokumenttyp mit Platzhaltern als Seedata einladen",
+      "Platzhalter-System erweitern: {{Customer.title_full_name}}, {{Partner.full_name}}, {{CustomerDocument.discount_time}} Integration testen",
+      "Positions-Rabatt-UI: Separates discount_percent Feld pro Position (neben unit_price)",
+      "Gliederung-Panel rechts (existiert im Code ab Zeile 345) auch für Titel nutzbar machen (Sprungmarken)",
+      "Positionenliste-Icon in Werkzeugleiste hinzufügen (Listen-Icon, zeigt Strukturübersicht)",
+      "Einleitungs-/Schlusstext: Platzhalter-Hilfe-Panel einblenden (verfügbare {{Variablen}})",
+      "Dokumenttyp-spezifische Layout-Vorsets (Modern vs. Klassik) mit Live-Umschalten",
+      "Bestellwert ausblenden Checkbox im Editor (laut Anforderung 6.5 'Positions-Beschreibung, ..., Einzelpreise ausblenden, Bestellwert ausblenden, ...')",
+      "Null-Guard prüfen: Bei leeren Positionen keine Division-by-Zero in Kalkulation (bereits OK in calcDocument)",
+      "RLS-Audit: Alle useDocuments/useDocument/useSaveDocument Queries korrekt mit company_id gefiltert (bestätigt OK)"
+    ]
+  },
+  {
+    "module": "KONTAKTE (CRM / Adressbuch)",
+    "coverage": "teilweise",
+    "present": [
+      "Tabs/Kategorien (ALLE, KUNDEN, LIEFERANTEN, PARTNER, ANSPRECHPARTNER, ARCHIV)",
+      "Grüner '+ Kontakt' Button",
+      "Tabellenspalten: Typ, Kundennummer, Firmenname, Vorname, Nachname, E-Mail, Kategorie, Ort",
+      "Spaltenfilterfunktion (in allen Spalten)",
+      "Sortierung in der Tabelle",
+      "Paginierung (25/50/100/250 Einträge pro Seite)",
+      "Klick auf Kontakt öffnet Detailansicht",
+      "Kontakt-Detailansicht mit Stammdaten (Name, Kundennummer, Kategorie, E-Mail, Telefon, Mobil, Adresse, Notizen)",
+      "Bearbeitungsbutton in der Detailansicht",
+      "Tabs in Detailansicht: Dokumente, Projekte, Logbuch (mit Zählern)",
+      "Kontaktformular mit Feldern: Typ, Kategorie, Kundennummer, Firmenname, Anrede, Vorname, Nachname, E-Mail, Telefon, Mobil, Straße, PLZ, Ort, Notizen",
+      "RLS-Implementierung über company_id in useContacts()",
+      "Archiv-Tab mit is_archived Filter",
+      "Archivbehandlung (is_archived = true)"
+    ],
+    "gaps": [
+      "Gruppenaktion (Massenaktionen auf mehrere markierte Kontakte) - komplett fehlend",
+      "Export-Button mit Dropdown - komplett fehlend",
+      "Spaltenkonfiguration (Linien-Icon zum Einstellen/Anzeigen von Spalten) - komplett fehlend",
+      "Checkbox/Auswahl in der Tabelle ('Klicken, um Zeilen auszuwählen') - komplett fehlend",
+      "Aktionen-Dropdown in Detailansicht (mit 'Datenauskunft senden' für DSGVO) - komplett fehlend",
+      "Reiter 'Logbuch' sollte Standard sein, ist aber nicht vorrangig - wird nicht in vertikaler Reiterleiste angezeigt",
+      "Reiter Bilder - komplett fehlend",
+      "Reiter Ausschreibungen (GAEB) - komplett fehlend",
+      "Reiter Ansprechpartner (parent_contact_id Verknüpfungen) - komplett fehlend",
+      "Reiter Aufgaben - komplett fehlend",
+      "Reiter Aufträge - komplett fehlend",
+      "Reiter Objektadressen - komplett fehlend",
+      "Suchfeld in Logbuch ('Suche Dateien, Kommentare, Termine …') - komplett fehlend",
+      "Filter-Icon im Logbuch - komplett fehlend",
+      "Button '+ Eintrag' im Logbuch zum Hinzufügen - komplett fehlend",
+      "Land-Feld im Kontaktformular (wird nur als Default gesetzt, nicht editierbar sichtbar) - unvollständig",
+      "Vertikale Reiterleiste (links) als eigenständige Navigationskomponente - fehlt (derzeit nur Tabs im Reiter-Panel)",
+      "Defaultansicht sollte Logbuch sein, ist aber Dokumente"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/KontaktDetail.tsx",
+        "desc": "TabsContent value='logbuch' nicht vorhanden - Tab 'Logbuch' ist in TabsList vorhanden (Zeile 88), aber das zugehörige Tabs-Inhalts-Element fehlt völlig. Standard-TabsContent value ist stattdessen auf 'dokumente' gesetzt (Zeile 84), wodurch Logbuch nicht angezeigt werden kann, obwohl Reiter klickbar ist.",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/KontaktDetail.tsx",
+        "desc": "RLS-Sicherheitslücke: Queries in KontaktDetail filtern nicht auf company_id. Bei Abfrage von documents, projects und activity_log wird nur nach customer_id/entity_id gefiltert (Zeilen 26, 35, 44). Wenn ein böser Benutzer die contact_id ändert, könnte er Dokumente/Projekte anderer Firmen sehen. Sollte zusätzlich .eq('company_id', company!.id) enthalten.",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/components/ContactDialog.tsx",
+        "desc": "Land-Feld (country) wird bei Erstellung mit Default 'Österreich' gesetzt (Zeile 33), ist aber im Formular nicht editierbar. Benötigt ein sichtbares Input-Feld wie andere Adressfelder.",
+        "severity": "mittel"
+      }
+    ],
+    "improvements": [
+      "Implementierung einer Checkbox-Spalte mit Select-All Checkbox im Header, um Mehrfachauswahl zu ermöglichen",
+      "Gruppenaktion-Button mit Dropdown-Menü hinzufügen (z. B. Archivieren, Löschen, Kategorie ändern, E-Mail versenden)",
+      "Export-Button mit Dropdown-Optionen (CSV, Excel, PDF) mit ausgewählten oder allen Kontakten",
+      "Spaltenkonfiguration implementieren - Icon-Button, der ein Modal/Popover öffnet zum Ein-/Ausblenden von Spalten",
+      "Aktionen-Dropdown im Header der KontaktDetail mit Einträgen wie 'Datenauskunft senden', 'Archivieren', 'Löschen'",
+      "Reiter-Navigation refaktorieren: Vertikale Reiterleiste links mit allen 9 Reitern (Logbuch, Bilder, Dokumente, Ausschreibungen, Ansprechpartner, Aufgaben, Aufträge, Projekte, Objektadressen)",
+      "Logbuch als Standard-Reiter setzen (defaultValue='logbuch')",
+      "Bilder-Reiter mit Foto-Galerie-Komponente hinzufügen",
+      "Ausschreibungen (GAEB)-Reiter hinzufügen",
+      "Ansprechpartner-Reiter mit Abfrage von Kontakten, die parent_contact_id = aktuelle contact_id haben",
+      "Aufgaben-Reiter hinzufügen (Abfrage aus tasks-Tabelle mit contact_id)",
+      "Aufträge-Reiter hinzufügen (Abfrage aus auftraege-Tabelle mit customer_id)",
+      "Objektadressen-Reiter hinzufügen (falls vorhanden: aus addresses/locations-Tabelle)",
+      "Logbuch-Suchfeld und Filter-Funktionalität implementieren",
+      "Button '+ Eintrag' im Logbuch zum Hinzufügen von Aktivitätseinträgen",
+      "Land-Feld im ContactDialog-Formular als editierbar machen (Select oder Input)",
+      "Hilfe-Text oder Kontexthilfe bei Ansprechpartner-Filter erwägen"
+    ]
+  },
+  {
+    "module": "Projekte / Pipelines - Projekt-Management",
+    "coverage": "teilweise",
+    "present": [
+      "Gewerke-Pipelines mit konfigurierbaren Phasen (Projekttypen im Admin)",
+      "Projektliste mit Tabelle (Spalten: Gewerk, Projekt-ID, Kunde, Name, Anschrift, Phase, Quelle, Projektwert)",
+      "Pipeline-Kanban-Ansicht mit Drag-and-Drop zwischen Phasen",
+      "Projekt-Detailansicht mit Kopfbereich (Projekt-ID, Kundenname, Adresse)",
+      "Status ändern (Projekt zwischen Phasen verschieben)",
+      "Logbuch-Reiter mit Zeitleiste und manuellen Einträgen",
+      "Dokumente-Reiter mit Auflistung projektbezogener Dokumente",
+      "Projekt-Erstellung mit Dialog (Gewerk, Kunde, Name, Adresse, Quelle, Projektwert)",
+      "Automatische Nummernvergabe pro Projekttyp",
+      "Activity Log für Projekt-Ereignisse (erstellt, Status-Wechsel, Kommentare)"
+    ],
+    "gaps": [
+      "Erinnerung-Button (reminder_at vorhanden in DB, nicht implementiert in UI)",
+      "Mitarbeiter-Zuweisung/Dropdown (assigned_to in DB, nicht in UI verlinkt)",
+      "Bilder-Reiter (nicht vorhanden)",
+      "Zeit & Lohn-Reiter (nicht vorhanden, Zeiterfassung existiert nur im Mitarbeitermodul)",
+      "Termine-Reiter im Projekt (nicht vorhanden, Termine sind eigenständiges Modul)",
+      "Aufgaben-Reiter im Projekt (nicht vorhanden, Aufgaben sind eigenständiges Modul)",
+      "Materialbelege-Reiter (nicht vorhanden, Lager existiert separat)",
+      "Soll/Ist-Vergleich-Reiter (nicht vorhanden)",
+      "Projektbeteiligte-Reiter (nicht vorhanden)",
+      "Checklisten-Reiter für Projekte (Checklisten existieren nur im Admin)",
+      "Ausschreibungen (GAEB)-Reiter (nicht vorhanden)",
+      "Lagerverwaltung-Reiter (nicht vorhanden)",
+      "Quellen-Filter in Projektliste (vorhanden in DB, nicht in UI)",
+      "Erreichbarkeit-Spalte in Projektliste (vorhanden in DB, nicht in UI)",
+      "Erinnerung-Spalten (Von/Bis) in Projektliste (nicht vorhanden)",
+      "Filteroptionen für Überfällige/Alle Offenen in Navigation implementiert, aber nicht funktional verlinkt mit Listenseite"
+    ],
+    "bugs": [
+      {
+        "desc": "Projekt-Detail Kopfbereich zeigt assigned_to/Mitarbeiter-Dropdown nicht an, obwohl assigned_to in DB vorhanden ist (Zeile 70 ProjektDetail.tsx). Nur Kunde und Standort werden angezeigt.",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/ProjektDetail.tsx",
+        "severity": "hoch"
+      },
+      {
+        "desc": "Erinnerung-Button (reminder_at) nicht implementiert - DB-Feld existiert, aber UI-Button 'Keine Erinnerung' fehlt in Projekt-Detail-Kopf",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/ProjektDetail.tsx",
+        "severity": "hoch"
+      },
+      {
+        "desc": "Projektliste fehlt Spalte 'Quelle' (source vorhanden in DB), Spalte 'Erreichbarkeit', Spalte 'Erinnerung (Von/Bis)' - laut Doc Abschnitt 5.2",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Projekte.tsx",
+        "severity": "mittel"
+      },
+      {
+        "desc": "RLS-Sicherheit: useProjects() filtert nur auf company_id und is_archived, nicht auf Niederlassungen oder Benutzerrollen (laut Abschnitt 24.3 sollten Zugriffsrechte pro Rolle gesteuert werden)",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/hooks/queries/useProjects.ts",
+        "severity": "mittel"
+      },
+      {
+        "desc": "Projekttypen-Konfigurator zeigt nur 4 generische BASE_STATUS ('offen','in_arbeit','abgeschlossen','storniert') statt der spezifischen Basis-Status aus Doc (z.B. 'Neu - Erstkontakt', 'Vor-Ort Termin', etc.)",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/admin/Projekttypen.tsx",
+        "severity": "mittel"
+      },
+      {
+        "desc": "Gewerke-Pipeline in Seitenleiste nicht dynamisch generiert: Navigation.ts zeigt nur statische 'Projekte'-Submenu mit Überfällige/Alle Offenen/Filter, nicht einzelne Gewerke als aufklappbare Menuepunkte mit Phasen+Zählern (Abschnitt 5.1/22.2)",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/lib/navigation.ts",
+        "severity": "hoch"
+      }
+    ],
+    "improvements": [
+      "Implementiere Erinnerung-Button in Projekt-Detail-Kopf mit Datepicker für reminder_at",
+      "Füge Mitarbeiter-Dropdown (assigned_to) in Projekt-Detail-Kopf rechts neben Status ändern ein",
+      "Erweitere Projekt-Detail TABS auf alle 13 Reiter (aktuell nur 2): Bilder, Ausschreibungen (GAEB), Zeit & Lohn, Termine, Aufgaben, Materialbelege, Soll/Ist Vergleich, Projektbeteiligte, Checklisten, Lagerverwaltung",
+      "Füge fehlende Spalten in Projektliste hinzu: Quelle, Erreichbarkeit, Erinnerung (Von/Bis)",
+      "Generiere Gewerke-Pipeline dynamisch in Seitenleiste: Lade project_types, zeige je Gewerk aufklappbar 'Überfällige Projekte', 'Alle Offenen', dann alle project_steps mit Zählern (filterable Navigation)",
+      "Erweitere BASE_STATUS im Projekttypen-Admin zu den spezifischen Status-Mappings aus der Anforderung (z.B. 'Neu - Erstkontakt', 'Vor-Ort Termin', 'Angebotserstellung', etc.)",
+      "Implementiere Filterlogik in Projektliste für ?filter=ueberfaellig und ?filter=offen (aktuell in Navigation vorhanden, aber nicht in useProjects() umgesetzt)",
+      "Prüfe RLS-Policies: Projektsichtbarkeit sollte auf company_id + branch_id + user_role basieren (aktuell nur company_id)",
+      "Ergänze Drag-and-Drop in Projektliste (aktuell nur in Kanban), um Projekte direkt aus Liste zu verschieben",
+      "Füge Status-Filter-Dropdown in Projektliste-Header ein (wie 'Alle anzeigen' in Doc Abschnitt 5.2)"
+    ]
+  },
+  {
+    "module": "Artikelstamm (Artikel, Leistungen, Verkaufspreise, Datanorm)",
+    "coverage": "teilweise",
+    "present": [
+      "Artikel-Liste mit CRUD-Operationen",
+      "Artikel-Dialog mit Informationen und Kalkulation Reitern",
+      "Leistungen-Verwaltung mit Zeit (Min.) und Preis",
+      "Verkaufspreise mit Markup-Prozentsatz",
+      "Verkaufspreis-Standard-Markierung",
+      "RLS company_id Filtering",
+      "Artikel-Kalkulation: EK, VK, MwSt",
+      "Leistungen-Integration in Dokumente",
+      "Dokumenten-Katalogsuche (Artikel + Leistungen)",
+      "Demo-Artikel korrekt angelegt (1002-1006)",
+      "Demo-Leistung Monteurstunde (60 Min, 35 EUR)",
+      "Demo-Verkaufspreis VK1 (0% Markup)"
+    ],
+    "gaps": [
+      "Artikel-Dialog: HISTORIE-Reiter",
+      "Artikel-Dialog: Bild-Upload-Button und Vorschau",
+      "Artikel-Dialog: Matchcode-Feld",
+      "Artikel-Dialog: Mehrere Verkaufspreise mit Namen anzeigen",
+      "Artikel-Tabelle: Spalte 'Genutzt' (Verwendungszähler)",
+      "Artikel-Tabelle: Spalte 'Lieferanten-Nr.'",
+      "Artikel-Tabelle: Beschreibung-Info-Icon",
+      "Leistungen-Dialog: Hersteller und EAN-Felder in UI",
+      "Datanorm-Modul komplett (Import, Großhändler-Katalog)",
+      "Artikel-Stämme-Verwaltung (multiple Stämme)",
+      "Gruppenaktion für Artikel/Leistungen",
+      "Spaltenkonfiguration für Tabellen",
+      "Export-Funktion (Button vorhanden, unklar ob aktiv)",
+      "Lagerbestand-Anzeige in Artikel-UI",
+      "Mehrstufige Mengenstaffeln im Schema"
+    ],
+    "bugs": [
+      {
+        "file": "src/pages/Artikel.tsx (Zeile 51-54)",
+        "desc": "Artikel hat sale_price als Absolutwert; Verkaufspreise-Markup wird nicht automatisch auf EK angewendet. Laut Doc sollte sale_price = purchase_price * (1 + markup_percent/100) sein. Aktuell werden zwei unabhängige Preisfelder gepflegt.",
+        "severity": "mittel"
+      },
+      {
+        "file": "src/hooks/queries/useCatalog.ts + src/pages/Artikel.tsx",
+        "desc": "Keine Validierung auf Eindeutigkeit von Artikelnummer (article_number) oder EAN pro company_id. Duplikate möglich.",
+        "severity": "niedrig"
+      },
+      {
+        "file": "src/pages/Artikel.tsx (Zeile 20)",
+        "desc": "Default-Werte beim Neuanlegen: unit='Stk' und vat_rate=20 sind hardcodiert. Sollten aus company.default_vat_rate bezogen werden.",
+        "severity": "niedrig"
+      }
+    ],
+    "improvements": [
+      "Bild-Upload für Artikel mit Preview implementieren (image_url-Feld existiert)",
+      "HISTORIE-Reiter im Dialog zeigen (Audit-Trail der Änderungen)",
+      "Matchcode-Feld in Artikel-Dialog ergänzen",
+      "Artikel-Tabellenspalten erweitern: Genutzt, Lieferanten-Nr., Beschreibung-Icon",
+      "Datanorm-Modul vollständig implementieren (Upload, Parse, Import mit Großhändler-API)",
+      "Verkaufspreise im Artikel-Dialog: Grid mit allen definierten VKs + deren Markup-Formeln",
+      "EAN und Hersteller auch im Leistungen-Dialog anzeigen",
+      "Validierung: Eindeutige Artikelnummer und EAN pro Mandant auf DB-Ebene (UNIQUE Constraint)",
+      "Export-Funktion testen/vollständig implementieren",
+      "Pagination bei vielen Artikeln (aktuell via useArticles, aber keine Limit/Offset)",
+      "Gruppenaktion: Massenbearbeitung von Kategorie/MwSt/VK/Lieferant"
+    ]
+  },
+  {
+    "module": "Buchhaltung (Rechnungen, Belege, Mahnungen, Einstellungen)",
+    "coverage": "teilweise",
+    "present": [
+      "Rechnungsliste mit Zahlungsstatus (Offen, Teilzahlung, Bezahlt, Überfällig, Storniert)",
+      "Zahlung erfassen Dialog (Betrag, Datum, Zahlungsart, Notiz)",
+      "Zahlungsstatus auto-recalculation via DB Trigger",
+      "Belege-Modul (Einnahmen/Ausgaben) mit Typ-Tab-Filter",
+      "Belegs Dialog (Typ, Kontakt, Nummer, Kategorie, Beträge, Datum, Status)",
+      "Mahnungen-Ansicht mit überfälligen Rechnungen",
+      "Mahnstufe erhöhen (manuelle Erhöhung pro Rechnung)",
+      "Mahnstufe-Datenstruktur (level, name, type, interval_days, fee, active, sort_order)",
+      "Mahnwesen-Tab in Einstellungen (CRUD für Mahnstufen)",
+      "Kostenstellen-Tab in Einstellungen (CRUD für Cost Centers)",
+      "RLS-Schutz auf allen Buchhaltungs-Tabellen (company_id)",
+      "Zahlungsmethoden (Überweisung, Bar, Karte, Lastschrift, Sonstige)"
+    ],
+    "gaps": [
+      "Dokumentstatus-Spalte und Filter (Import erforderlich, In Bearbeitung, Erstellt, Versendet, etc.)",
+      "Dokumenttyp-Spalte und Filter (Rechnung, Rechnung §13b, Gutschrift, Stornorechnung)",
+      "Projekt-ID-Spalte in Rechnungs- und Belegs-Liste",
+      "Exportdatum-Spalte in Rechnungs-Liste",
+      "Bezahlt am-Spalte in Rechnungs-Liste (paid_at aus payments)",
+      "Lieferant/Partner-Filter und Unterscheidung in Belege",
+      "Rechnungen herunterladen-Button in Belege-Ansicht",
+      "Mahnlauf-Automatisierung (batch-processing mit Intervallen)",
+      "Mahnwesen einrichten-Button in Mahnungs-Ansicht",
+      "Letzte Erinnerung-Spalte (max sent_at aus dunnings)",
+      "Letzte Notiz-Spalte in Mahnungs-Liste",
+      "Reiter BUCHUNGSKONTEN (DATEV SKR 03/04, 136 Einträge)",
+      "Reiter UMSATZSTEUERREGELUNG (Steuersätze, §13b, Photovoltaik)",
+      "Reiter NUMMERNKREISE",
+      "Reiter ALLGEMEIN in Buchhaltungs-Einstellungen",
+      "Dokumentenkonfigurator Reiter Buchung (Buchungsrelevant, Buchungskategorie, Soll/Haben, Buchungskonto, Kostenstelle)",
+      "Wertstellung-Spalte in Belege-Liste",
+      "Exportiert-Spalte in Belege-Liste",
+      "Datei-Spalte in Belege-Liste (Belegs-Upload-UI)",
+      "Projekt/Kunde-Spalte in Belege-Liste",
+      "Kostenstellenfilter in Belege-Liste"
+    ],
+    "bugs": [
+      {
+        "desc": "open_amount in Belege wird nie recalculiert wie bei Payments; kein Trigger für Belegzahlungen. Feld wird statisch gespeichert und nicht nach Zahlungen aktualisiert.",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/supabase/migrations/0005_modules.sql (Zeilen 25-44), /Users/christophnapetschnig/Developer/neuedemoapp/src/pages/buchhaltung/Belege.tsx",
+        "severity": "mittel"
+      },
+      {
+        "desc": "Mahngebühr (fee aus dunning_levels) wird nirgends berechnet oder zur open_amount addiert. Mahnungen haben zwar ein fee-Feld, dieses wird bei Mahnungserstellung nicht zum Rechnungsbetrag hinzugefügt.",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/hooks/queries/useDunning.ts (useCreateDunning, Zeilen 82-107)",
+        "severity": "mittel"
+      },
+      {
+        "desc": "Belegs contact_id wird nicht validiert. Dialog erlaubt Speichern ohne Kontakt; DB hat keinen NOT NULL Constraint.",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/buchhaltung/Belege.tsx (ReceiptDialog, Zeilen 111-122)",
+        "severity": "niedrig"
+      },
+      {
+        "desc": "Zahlung erfassen Dialog: Keine Input-Validierung für negative Zahlungsbeträge. Nur amt <= 0 validiert.",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/buchhaltung/Rechnungen.tsx (PaymentDialog, Zeilen 66, 79-80)",
+        "severity": "niedrig"
+      },
+      {
+        "desc": "Dunning Level Sortierung verwirrend: Tabelle zeigt Stufe (level), nicht Sortierung (sort_order). Sortierung erfolgt aber nach sort_order dann level.",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/buchhaltung/BuchhaltungEinstellungen.tsx (MahnwesenTab, Zeilen 144-175)",
+        "severity": "niedrig"
+      }
+    ],
+    "improvements": [
+      "Rechnungs-Tabelle erweitern: Spalten für document_status, base_type (mit Filterfeldern), project_id, exported_at, paid_at (aus payments JOIN)",
+      "Belege-Tabelle erweitern: Spalten für file_url (mit Upload-UI), project_id+contact_id kombiniert, contact_type-Filter (Lieferant/Partner), value_date, exported",
+      "Mahnlauf-Automatisierung: Button Mahnlauf starten implementieren, der nach dunning_levels.interval_days automatisch Mahnungen erzeugt",
+      "Mahnungs-Liste: Spalten Letzte Erinnerung (max sent_at), Letzte Notiz (note von letzter Mahnung), Button Mahnwesen einrichten",
+      "BuchhaltungEinstellungen: 4 zusätzliche Reiter (Buchungskonten, Umsatzsteuerregelung, Nummernkreise, Allgemein)",
+      "Receipts open_amount: DB-Trigger implementieren ähnlich trg_payments_recompute",
+      "Mahngebühr-Logik: Bei Mahnungserstellung fee aus dunning_level laden und zur open_amount addieren",
+      "Validierung: contact_id in Belege als Required; Zahlungsbeträge auf positive Werte checken",
+      "Cost Center Integration: cost_center_id in Rechnungs-Abfrage und Spalte anzeigen",
+      "Dokument-Download: Rechnungen herunterladen Button implementieren (PDF-Export oder Batch-Download)"
+    ]
+  },
+  {
+    "module": "MITARBEITER / ZEITVERWALTUNG (Modul 14, 32)",
+    "coverage": "teilweise",
+    "present": [
+      "Mitarbeiterliste mit Aktiv/Inaktiv-Tabs (32.1)",
+      "Mitarbeiter bearbeiten Dialog (Rolle, Position, Nutzertyp, Status)",
+      "Abwesenheitsanträge mit Genehmigungsworkflow (Genehmigen/Ablehnen-Buttons) (32.2)",
+      "Abwesenheitsarten-Dropdown beim Antrag (8 vordefinierte + dynamische Typen)",
+      "Zeiterfassung mit Listenansicht und Quick-Filters (Heute/Woche/Monat/Jahr) (32.3)",
+      "Zeiteintrag erstellen Dialog mit Mitarbeiter, Projekt, Kategorie, Datum, Dauer",
+      "Zeiteintrag-Bestätigung (Status: Vorläufig → Eingereicht → Bestätigt)",
+      "Zeitkategorien: Verwaltung mit Archiv/Aktivstatus und Arbeitszeitrelevanz-Toggle (32.4)",
+      "Pausenverwaltung: Drei Radio-Button-Optionen (Gesetzlich/Fest/Keine) mit Speicher (32.5)",
+      "Lohngruppen: Verwaltung mit Namen, Lohnselbstkosten, Lohngesamtkosten (32.6)",
+      "RLS mit company_id-Filter auf allen Tabellen (wage_groups, time_entries, absences, etc.)",
+      "useEmployees(), useAbsences(), useTimeEntries(), useTimeCategories(), useWageGroups() Hooks",
+      "Query-Invalidation bei Upsert/Delete-Operationen"
+    ],
+    "gaps": [
+      "Foto/Avatar-Spalte in Mitarbeiter-Tabelle komplett fehlend (Doc 32.1: '#, Foto/Avatar, Name...')",
+      "Niederlassungen-Spalte in Mitarbeiter-Tabelle fehlend (Doc 32.1: 'Niederlassungen')",
+      "Name-Feld in Mitarbeiter sollte kombiniert sein mit E-Mail + Nutzertyp in Klammern, nicht separate Spalten",
+      "Erstellt-Spalte in Mitarbeiter-Tabelle fehlend (Doc 32.1)",
+      "Abwesenheiten: Reiter sollten 'UEBERSICHT' und 'DERZEIT ABWESEND' sein, nicht 'Übersicht' und 'Genehmigen' (Doc 32.2)",
+      "Abwesenheiten: Spalte 'Beanspruchtes Budget' komplett fehlend (Doc 32.2: 'Zeitraum, Dauer, Beanspruchtes Budget, Abwesenheitsart...')",
+      "Abwesenheitsarten: Keine Verwaltungs-UI für Absence Types (können nur geladen, nicht editiert werden)",
+      "Zeiterfassung: Reiter 'STUNDENAUSGLEICH' fehlt komplett (Doc 32.3)",
+      "Zeiterfassung: KPI-Kacheln sind komplett falsch. Soll sein: 'Zeiterfassung' (BEANTRAGT/BEWILLIGT), 'Arbeitszeit' (SOLL/ABWESEND), 'Zeitkonto' (AUSGLEICH/SALDO). Aktuell: 'Erfasste Stunden', 'Anzahl Einträge', 'Offen/Bestätigt'",
+      "Zeiterfassung-Tabelle: Spalte 'Pause' fehlt (Doc 32.3: 'Mitarbeiter, Datum, Dauer, Pause, Status')",
+      "Zeiterfassung: Status-Enum in Doc: 'Vorlaeufig, Eingereicht, Bestaetigt, Geloescht'. Code hat default='eingereicht', aber neu ist 'vorlaeufig'",
+      "Zeiterfassung: Buttons 'Stundenliste', 'Tagesansicht/Einzelansicht', 'Export' fehlen (Doc 32.3)",
+      "Mitarbeiter-Dialog: Foto-Upload nicht möglich (avatar_url in DB vorhanden, aber nicht editierbar)",
+      "Mitarbeiter-Dialog: Niederlassungen nicht zuweisbar (branch_id in profiles vorhanden, aber nicht im Dialog)",
+      "Dashboard Mitarbeiterverwaltung-Karte zeigt generische Beschreibung statt echter KPIs (Doc: 'Es liegen 0 Abwesenheitsanträge zur Entscheidung. Es wurden 12 Arbeitszeiten eingereicht.')",
+      "Abwesenheitsantrag-Dialog: Felder 'Beanspruchtes Budget' und 'Arbeitsstundenbudget-Tracking' nicht implementiert",
+      "Zeiterfassung: break_minutes-Feld in TimeEntry wird nicht in Tabelle angezeigt",
+      "RLS: Sind Abwesenheitstypen und Zeitkategorien nur company_id-begrenzt (OK), aber keine Verwaltungsseite zum Anlegen"
+    ],
+    "bugs": [
+      {
+        "desc": "Abwesenheiten Reiter-Label: Code nutzt interne 'genehmigen', aber Nutzer sieht 'Genehmigen' mit großem G. Tab-Name sollte 'derzeit_abwesend' sein (Doc: 'DERZEIT ABWESEND')",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/mitarbeiter/Abwesenheiten.tsx:231-232",
+        "severity": "mittel"
+      },
+      {
+        "desc": "Zeiterfassung: Status default beim Neuerstellung ist 'vorlaeufig' (Dialog), aber query filtert mit neq('status', 'geloescht'). Inconsistenz: sollte konsistent sein, ob neue Einträge 'vorlaeufig' oder 'eingereicht' sind",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/mitarbeiter/Zeiterfassung.tsx:74 + useTime.ts:21",
+        "severity": "mittel"
+      },
+      {
+        "desc": "Abwesenheiten: Dialog speichert 'type' als string direkt, aber absences.type sollte FK zu absence_types sein (Doc: 'Abwesenheitsarten stehen zur Auswahl'). Aktuell wird nur Name-String gespeichert",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/mitarbeiter/Abwesenheiten.tsx:89 + useEmployees.ts:138",
+        "severity": "hoch"
+      },
+      {
+        "desc": "Pausenverwaltung: break_rule wird in company.settings gespeichert, aber es gibt keine Implementierung, die break_rule-Einstellung tatsächlich nutzt (z.B. automatischer Pausenabzug bei Zeiteintrag)",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/mitarbeiter/Pausenverwaltung.tsx",
+        "severity": "hoch"
+      },
+      {
+        "desc": "Mitarbeiter-Tabelle zeigt keine Foto/Avatar (vorhanden im DB-Schema, aber nicht genutzt)",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/mitarbeiter/Mitarbeiter.tsx:145-163",
+        "severity": "niedrig"
+      },
+      {
+        "desc": "RLS auf absences: Alle absences werden geladen und gefiltert nur nach tab. Aber absences könnten von anderen Mitarbeitern sein (employee_id ist nicht auth.uid()). Sollte eigentlich als Genehmiger nur eigene oder untergeordnete sehen können (Rollen-abhängig)",
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/hooks/queries/useEmployees.ts:116-130",
+        "severity": "hoch"
+      }
+    ],
+    "improvements": [
+      "Implementiere Foto-Upload und -Anzeige in Mitarbeiter-Tabelle und Dialog (avatar_url bereits in DB)",
+      "Füge Niederlassungen-Spalte zu Mitarbeiter-Tabelle hinzu und ermögliche Zuweisung im Dialog (branch_id vorhanden)",
+      "Refaktoriere Mitarbeiter-Name-Spalte: Kombiniere Name + E-Mail + Nutzertyp in einer Spalte mit richtiger Formatierung",
+      "Ändere Abwesenheits-Reiter zu 'UEBERSICHT' und 'DERZEIT ABWESEND' (nicht 'Genehmigen')",
+      "Implementiere Spalte 'Beanspruchtes Budget' in Abwesenheits-Tabelle (evtl. Berechnung basierend auf Lohngruppe × Tage)",
+      "Erstelle separate Admin-Seite für Abwesenheitstypen-Verwaltung (create/update/delete)",
+      "Füge Reiter 'STUNDENAUSGLEICH' zur Zeiterfassung hinzu (zeige Überstunden-Konten)",
+      "Ersetzt KPI-Kacheln in Zeiterfassung durch korrekte Metriken: BEANTRAGT, BEWILLIGT, SOLL, ABWESEND, AUSGLEICH, SALDO",
+      "Füge Spalte 'Pause' zur Zeiterfassung-Tabelle hinzu (break_minutes / 60)",
+      "Implementiere Buttons 'Stundenliste', 'Tagesansicht/Einzelansicht', 'Export' in Zeiterfassung",
+      "Implementiere automatische Pausenberechnung/Abzug basierend auf break_rule (Pausenverwaltung → Zeiterfassung-Logik)",
+      "Dashboard-Karte Mitarbeiterverwaltung: Zeige echte KPIs (Anzahl Abwesenheitsanträge zur Genehmigung, Anzahl eingereichte Arbeitszeiten)",
+      "Absences: Verbessere das Rollen-/Berechtigungsmodell (z.B. nur Führungskräfte dürfen genehmigen)",
+      "Mitarbeiter-Tabelle: Spalte 'Erstellt' hinzufügen und sortierbar machen",
+      "RLS-Policy für absences: Nicht alle absences für Standardbenutzer sichtbar machen, Filterung nach Rolle/Hierarchy"
+    ]
+  },
+  {
+    "module": "PLANUNG (Abschnitte 12 + 29.1)",
+    "coverage": "teilweise",
+    "present": [
+      "Termine-Liste (Listenansicht mit Spalten Start, Ende, Titel, Kategorie, Mitarbeiter)",
+      "Kalender mit Monatsansicht und Navigation (vorwärts/rückwärts/Heute)",
+      "Plantafel mit Wochenansicht (Mo-Sa) und Ressourcen-Tabelle",
+      "Termine mit Zuordnung zu Mitarbeitern (assigned_to), Kategorien und Projekten",
+      "Termine-Dialog zum Erstellen/Bearbeiten mit Titel, Kategorie, Mitarbeiter, Projekt, Start/Ende, Notiz",
+      "Appointment-Kategorien mit Name und Farbe (KATEGORIEN-Reiter)",
+      "Ressourcen-Verwaltung (Ressourcen, Typ, verknüpfter Mitarbeiter) - RESSOURCEN-Reiter",
+      "RLS-Schutz mit company_id auf allen Queries und Mutationen",
+      "Ressourcentypen als Enum-Werte (mitarbeiter, fahrzeug, allgemein)",
+      "Kalender-Export-Button (Button vorhanden, Funktionalität müsste noch geprüft werden)",
+      "Termine können auf Plantafel per Klick erstellt werden mit Defaults (Ressource, Datum, Uhrzeit)"
+    ],
+    "gaps": [
+      "RESSOURCENTYPEN-Reiter in PlanungEinstellungen.tsx fehlt komplett (Doc 29.1 fordert 4 Reiter: RESSOURCEN, RESSOURCENTYPEN, KATEGORIEN, TERMINDARSTELLUNG - nur 2 vorhanden)",
+      "TERMINDARSTELLUNG-Reiter fehlt (Arbeitszeiten, Anzeigeoptionen konfigurieren)",
+      "Plantafel-Filter 'Kategorie' und 'Gewerk' (je mit Trichter-Icon) fehlen komplett",
+      "Plantafel Import/Export-Dropdown fehlt",
+      "Plantafel Ansicht-Dropdown fehlt (z.B. 'Kalenderwoche' auswählen)",
+      "Plantafel Zahnrad-Button für Einstellungen fehlt",
+      "Plantafel KW-Anzeige fehlt (z.B. 'KW24' bei '8 - 14. Juni 2026 KW24')",
+      "Plantafel Stundenblöcke-Spalten fehlen (Doc fordert 06/09/12/15 Uhr als Zeitspalten-Unterteilung, aktuell ist nur eine Spalte pro Tag vorhanden)",
+      "Plantafel Ressourcen-Gruppierung fehlt: 'Allgemein' (z.B. 'Projekte terminiert') und 'Mitarbeiter' (je eine Zeile pro Person) - aktuell werden nur einzelne Ressourcen angezeigt",
+      "Plantafel Drag & Drop zum Verschieben von Terminen fehlt komplett",
+      "Kalender: Woche/Monat-Toggle fehlt (Doc 12.2 fordert 'Umschaltung Woche/Monat' - nur Monat implementiert)",
+      "Kalender: Tag-Ansicht fehlt komplett",
+      "Termine-Liste: Spalte 'Ressourcen' (resource_id) fehlt",
+      "Termine-Liste: Spalte 'Erledigt' (done_at) fehlt",
+      "Termine-Liste: Spalte 'Projekt' fehlt (wird nicht angezeigt, obwohl project_id in Dialog vorhanden)",
+      "Kalender-Export-Funktionalität (Button da, aber keine Implementation sichtbar)",
+      "Plantafel Zeiterfassung-Integration oder Arbeitszeit-Darstellung fehlt"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/planung/Kalender.tsx",
+        "desc": "Kalender zeigt immer Monatsansicht; Toggle zwischen Tag/Woche/Monat laut Anforderung 12.2 nicht implementiert",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/planung/Plantafel.tsx",
+        "desc": "Plantafel hat keine Stundenblöcke-Spalten (06, 09, 12, 15) - nur eine Spalte pro Tag; Zeitachse unterteilt nicht in Stundenblöcke wie gefordert",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/planung/Plantafel.tsx",
+        "desc": "Ressourcen-Spalte zeigt alle Ressourcen flach ohne Gruppierung in 'Allgemein' (Projekte terminiert) und 'Mitarbeiter' wie gefordert",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/planung/PlanungEinstellungen.tsx",
+        "desc": "Nur 2 von 4 geforderten Reitern vorhanden: RESSOURCEN und KATEGORIEN implementiert; RESSOURCENTYPEN und TERMINDARSTELLUNG fehlen völlig",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/planung/Termine.tsx",
+        "desc": "Kolumnen in Termine-Liste unvollständig: resource_id und done_at nicht angezeigt; project_id wird nicht in der Tabelle angezeigt obwohl in Dialog vorhanden",
+        "severity": "mittel"
+      }
+    ],
+    "improvements": [
+      "Implementiere RESSOURCENTYPEN-Reiter in PlanungEinstellungen.tsx (kann einfach vom Ressourcen-Tab kopiert werden, verwaltet aber Ressourcentyp-Stammdaten)",
+      "Implementiere TERMINDARSTELLUNG-Reiter für Arbeitszeiten und Anzeigeoptionen-Konfiguration",
+      "Füge Filter-Buttons 'Kategorie' und 'Gewerk' in Plantafel ein (verwende existing appointment_categories und project_type Filter)",
+      "Implementiere Plantafel Import/Export-Dropdown (z.B. iCal-Export)",
+      "Implementiere Ansicht-Dropdown in Plantafel (aktuell ist nur 'Kalenderwoche' gedacht)",
+      "Implementiere KW-Anzeige in Plantafel Header neben Datumsbereich",
+      "Implementiere Zahnrad-Button mit Link zu /planung/einstellungen in Plantafel-Header",
+      "Refaktoriere Plantafel-Zeitachse um Stundenblöcke zu zeigen: Spaltenunterteilung pro Tag in 06/09/12/15 Uhr (benötigt CSS-Grid mit mehreren Spalten pro Tag-Spalte)",
+      "Implementiere Ressourcen-Gruppierung in Plantafel: 'Allgemein' (mit Zeile 'Projekte terminiert') und 'Mitarbeiter' Gruppe (nur resources mit type='mitarbeiter')",
+      "Implementiere Drag & Drop für Termine in Plantafel (nutze react-dnd oder react-beautiful-dnd, update resource_id und start_at auf Drop)",
+      "Implementiere Woche/Monat-Toggle in Kalender (StateVar für viewMode, zeige verschiedene Layouts)",
+      "Implementiere Tag-Ansicht im Kalender für vollständige Tag/Woche/Monat-Anforderung",
+      "Zeige resource_id in Termine-Spalten an (Lookup von resources.name via resource_id)",
+      "Zeige done_at in Termine-Spalten an (wenn gesetzt, grün hervorgehoben als 'erledigt')",
+      "Zeige project_id als Projekt-Nummer in Termine-Spalten an (Lookup von projects.project_number via project_id)",
+      "Implementiere Kalender-Export-Funktionalität (iCal/ICS-Format via Supabase-Funktion)",
+      "Erwäge Hinzufügen von Arbeitszeit-Kontextinformationen zu Plantafel (z.B. Integrationspunkte zu Zeiterfassung)"
+    ]
+  },
+  {
+    "module": "Lager (Lagerverwaltung)",
+    "coverage": "teilweise",
+    "present": [
+      "Lagerartikel-Verwaltung (Anlegen, Bearbeiten, Löschen via Dialog)",
+      "Lagerbewegungen (Einbuchung/Ausbuchung via Dialog mit Menge + Notiz)",
+      "Lagerbuch (chronologische Bewegungshistorie mit Datum, Artikel, Altbestand, Menge, Neubestand, Buchungstyp)",
+      "Bestandsverwaltung via DB-Trigger (old_stock/new_stock wird auto. aktualisiert)",
+      "Negative Bestandswarnung (visuell mit AlertTriangle-Icon)",
+      "RLS + company_id Schutz vollständig",
+      "Vier Untermenü-Punkte korrekt in Navigation verankert",
+      "Menübeschriftungen deutsch korrekt",
+      "Beschreibung in Lagerartikel editierbar"
+    ],
+    "gaps": [
+      "Beschreibung-Spalte in Lagerartikel-Tabelle nicht angezeigt (Feld vorhanden in DB, nicht in UI)",
+      "Risiko: Out of Stock als dedizierte Spalte/Filter Ja/Nein fehlt (nur visuell negativ-Warnung)",
+      "Export QR-codes Button nicht implementiert",
+      "Export Button/Dropdown nicht implementiert",
+      "Spaltenkonfiguration (Filter-Buttons 'Suchen'/'Reset' und Spalten-Menue) nicht implementiert",
+      "Kategorie-Spalte in Lagerbuch fehlt",
+      "Projekt-Spalte in Lagerbewegungen (Einbuchungen/Ausbuchungen) fehlt",
+      "Dokument-Spalte in Lagerbewegungen fehlt",
+      "Erstellt von-Spalte (created_by) in Lagerbewegungen/Lagerbuch fehlt",
+      "'Neue Einbuchung'/'Neue Ausbuchung' Button in LagerBewegungen.tsx fehlt (nur als Dialog auf Lagerartikel verfügbar)",
+      "Buchungsart-Filter (Vorgemerkte Einbuchung, Direkte Einbuchung) nicht implementiert (Feld in DB fehlt)",
+      "Status-Filter (Offen, Teilweise abgeschlossen, Abgeschlossen) nicht implementiert (Feld in DB fehlt)"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Lager.tsx",
+        "desc": "Risikowert nicht berechnet: Nur visuell Warnung bei stock < 0, aber kein echtes Out-of-Stock Risiko-Feld (planned_stock vs. stock). Anforderung: 'Risiko: Out of Stock' mit Filter Ja/Nein und orangefarbenem Warndreieck bei Unterbestand",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/LagerBewegungen.tsx",
+        "desc": "Keine Möglichkeit, Bewegungen mit Projekten/Dokumenten zu verknüpfen: project_id/document_id werden immer null gespeichert, UI hat keine Felder dafür. Anforderung verlangt diese Spalten in Tabelle",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/LagerBewegungen.tsx",
+        "desc": "Spalte 'Erstellt von' (created_by) in UI nicht angezeigt, obwohl in Tabelle gespeichert",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Lagerbuch.tsx",
+        "desc": "Spalte 'Kategorie' des Lagerartikels nicht angezeigt (Referenzdaten vorhanden, nur UI fehlt)",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/hooks/queries/useStock.ts",
+        "desc": "null-guards vorhanden aber minimal: No validation ob quantity plausibel (z.B. Dezimalstellen). Nur String-zu-Zahl mit replace(',', '.')",
+        "severity": "niedrig"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/supabase/migrations/0005_modules.sql",
+        "desc": "Fehlendes Status-Feld in stock_movements: Anforderung fordert Status (Offen/Teilweise abgeschlossen/Abgeschlossen) für Bewegungen, nicht implementiert",
+        "severity": "hoch"
+      }
+    ],
+    "improvements": [
+      "Name-Spalte in Lagerartikel als blauer Link zur Detailansicht rendern (wie stock_number)",
+      "Beschreibung-Spalte in Lager.tsx hinzufügen (Column mit description)",
+      "Risiko: Out of Stock als Filter-Spalte (berechnet: planned_stock > 0 && stock < planned_stock, oder custom risk-Feld)",
+      "Export QR-codes Button mit Icon implementieren (generiert QR-Code-PDF für Drucken)",
+      "Export Button/Dropdown für CSV/Excel-Export",
+      "Spalten-Konfiguration: Menu für ein-/ausblenden von Spalten + Filter Reset",
+      "Kategorie in Lagerbuch.tsx anzeigen (via join zu stock_items.category)",
+      "Projekt/Dokument-Spalten in Lagerbewegungen (einmalig als Links rendern oder beschreibend)",
+      "Erstellt von-Spalte mit Mitarbeitername (join zu profiles.full_name)",
+      "'Neue Einbuchung'/'Neue Ausbuchung' Buttons im PageHeader von LagerBewegungen (nicht nur auf Lager-Hauptseite)",
+      "Status-Feld zu stock_movements Schema hinzufügen und Status-Filter implementieren",
+      "Buchungsart-Filter implementieren (z.B. booking_type Feld oder einfach unterscheiden zwischen geplant/direkt)",
+      "Bewegungs-Dialog erweitern: Projekt + Dokument auswählbar (z.B. Select mit Projekten)"
+    ]
+  },
+  {
+    "module": "Service-Modul (Wartungsverträge, Aufträge, Aufgaben)",
+    "coverage": "teilweise",
+    "present": [
+      "Wartungsverträge: Grundliste mit CRUD",
+      "Wartungsverträge: Laufzeit/Intervall in Jahren/Monaten/Wochen/Tagen",
+      "Wartungsverträge: Status (Aktiv/Inaktiv/Archiviert)",
+      "Aufträge: Grundliste mit Status-Filter-Tabs",
+      "Aufträge: Typ (Wartung/Reparatur/Notdienst/Reklamation/Sonstiges)",
+      "Aufträge: Status-Workflow (Offen/Zugewiesen/Erledigt/Rechnung/Abgeschlossen/Archiviert)",
+      "Aufträge: Mitarbeiter-Zuweisung",
+      "Aufträge: Auto-Nummern-Generierung (AUF-xxx)",
+      "Aufgaben: Grundliste mit CRUD",
+      "Aufgaben: Reiter Meine/Erstellte/Erledigte/Alle",
+      "Aufgaben: Zuordnung zu Mitarbeiter und Projekt",
+      "Aufgaben: Fälligkeitsdatum mit Überfällig-Rot-Markierung",
+      "Aufgaben: Erledigt-Toggle (Checkbox) mit done_at Timestamp",
+      "RLS: company_id-Filter auf allen Queries",
+      "DB-Schema: Alle Core-Tabellen vorhanden (maintenance_contracts, orders, tasks)"
+    ],
+    "gaps": [
+      "Wartungsverträge: Spalte 'Adresse' nicht dargestellt (fehlende Beziehung zu project/contact)",
+      "Wartungsverträge: Spalte 'Projekt' nicht dargestellt",
+      "Wartungsverträge: Spalte 'Letzter Termin' (last_appointment DB-Spalte existiert, wird nicht angezeigt)",
+      "Wartungsverträge: Spalte 'Letzte Aktion' nicht implementiert",
+      "Wartungsverträge: Spalte 'Erinnerung' (reminder DB-Spalte existiert, wird nicht angezeigt)",
+      "Wartungsverträge: Spalte 'Aktionen' (Edit/Delete Icons) nicht dargestellt",
+      "Wartungsverträge: Automatische Terminerstellung aus fälligen Verträgen nicht implementiert (Doc: 'Aus fälligen Wartungsverträgen können automatisch Aufträge bzw. Termine erzeugt werden')",
+      "Aufträge: Spalte 'Adresse' nicht in DataTable dargestellt (address existiert in DB und Dialog)",
+      "Aufträge: Spalte 'Erstellt am' nicht dargestellt (created_at in DB vorhanden)",
+      "Aufträge: Spalten 'Aktionen' (Edit/Delete Icons) nicht dargestellt",
+      "Aufgaben: Spalte 'Erstellt am' (created_at) nicht dargestellt",
+      "Aufgaben: Spalte 'Ersteller' (created_by) nicht dargestellt",
+      "Aufgaben: Spalte 'Erledigt am' (done_at Datum) nicht als separate Spalte - nur Badge",
+      "Aufgaben: Reiter 'VORLAGEN' fehlt komplett - keine Task-Template-Funktionalität",
+      "Aufgaben: Button '+ Vorlage' nicht implementiert",
+      "Kontakt-Detailansicht: Nicht implementiert (Doc 35.2: sollte Reiter Logbuch, Bilder, Dokumente, Aufträge, Projekte etc. haben)",
+      "Aufträge: Ansprechpartner-Feld nicht dargestellt (contact_person_id in DB, nicht im Dialog/Tabelle)"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Auftraege.tsx",
+        "desc": "Spalte 'Adresse' ist in der Dialog definiert (Zeile 178) aber nicht in der DataTable sichtbar - Nutzer können Adresse erfassen, sehen sie aber nicht in der Liste → Konsistenz-Bug",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Auftraege.tsx",
+        "desc": "Dialog-Feld 'Ansprechpartner' (contact_person_id) ist nicht im Form-State implementiert - wird nicht gespeichert, obwohl in DB-Schema vorhanden",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Wartungsvertraege.tsx",
+        "desc": "Spalten 'Letzter Termin' und 'Erinnerung' sind in der DB vorhanden (last_appointment, reminder) aber nicht im DataTable/Dialog verwaltet - Dead Code in DB",
+        "severity": "niedrig"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Aufgaben.tsx",
+        "desc": "Spalte 'Ersteller' (created_by) wird nicht angezeigt, obwohl in Task-Tabelle gespeichert - erschwert Nachverfolgung von wem Aufgabe erstellt wurde",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/hooks/queries/useMaintenance.ts",
+        "desc": "Joins für customer und assignee sind definiert (Zeile 12) aber project ist nicht dabei - daher 'Projekt'-Spalte in Wartungsverträgen nicht möglich",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Aufgaben.tsx",
+        "desc": "Fehlende Unit-Tests für Überfällig-Logik (due_date < heute, !done_at) - kritische Business-Logik ohne Test Coverage",
+        "severity": "niedrig"
+      }
+    ],
+    "improvements": [
+      "Wartungsverträge: DataTable um Spalten Adresse, Projekt, Letzter Termin, Letzte Aktion, Erinnerung, Aktionen erweitern - erfordert Join zu projects und contacts in useMaintenanceContracts Query",
+      "Aufträge: address und created_at Spalten zur DataTable hinzufügen (bereits in DB + Dialog vorhanden)",
+      "Aufträge: contact_person_id Feld (Ansprechpartner) in Form-State und Dialog integrieren",
+      "Aufgaben: Spalten created_at, created_by, done_at als separate Spalten hinzufügen statt Badge-Lösung",
+      "Aufgaben: VORLAGEN-Reiter + TaskTemplate-System implementieren (neue DB-Tabelle task_templates, CRUD-Hook, UI)",
+      "Aufgaben: Button '+Vorlage' zum Öffnen von Template-Dialog",
+      "Kontakt-Detailansicht: Neue Page/Dialog mit Reitern: Logbuch, Bilder, Dokumente, Ansprechpartner, Aufgaben, Aufträge, Projekte, Objektadressen",
+      "Wartungsverträge: Scheduled Function / Trigger für Auto-Terminerstellung aus fälligen Verträgen (prüfe täglich ob due_date überschritten und create order)",
+      "Aufträge: Export-Button in PageHeader (analog Wartungsverträge/Aufgaben)",
+      "Wartungsverträge: Icons/Buttons für Edit/Delete in Tabelle (3-Punkte-Menü oder Stift/Papierkorb)"
+    ]
+  },
+  {
+    "module": "ADMINBEREICH FIRMENEINSTELLUNGEN (Abschnitte 16, 23-25)",
+    "coverage": "teilweise",
+    "present": [
+      "Firmenprofil: Logo-Upload, Firmendaten (Name, Adresse, Kontaktwerte, Bankverbindung, Steuernummern)",
+      "Seitendarstellung: Primärfarbe-Picker mit Hex-Eingabe und Live-Vorschau",
+      "Niederlassungen: Vollständige CRUD mit Name, Adresse, Radius, Mitarbeiteranzahl-Anzeige",
+      "Email-Templates: Tabelle mit Name, Kontext, Betreff; Dialog zum Erstellen/Bearbeiten",
+      "Zugriffsrechte: Rollen×Rechte-Matrix (5 Rollen, 6 Rechte) mit Ja/Nein-Dropdowns",
+      "Projekttypen: Übersicht mit Namen, Code, Standard-Flag, Schrittanzahl; Dialog zum Bearbeiten von Schritten",
+      "Ordner (Dokumentenordner): CRUD mit System/Eigen-Unterscheidung und Lösch-Schutz",
+      "Quellen (Projekt-Quellen): Einfache Liste mit Name, CRUD-Icons",
+      "Eigene Felder: Feldtypen (Text, Checkbox, Select, URL), Suffix, Hinweis, Optionen-Management",
+      "Checklisten: CRUD mit Name und Items-Liste (Eingabe, Löschen einzelner Items)",
+      "Mailserver: SMTP-Config mit Email, Provider-Dropdown, Benutzername, Passwort, BCC (noch nicht aktiv laut Alert)",
+      "Informationsdokumente: Placeholder-Implementierung mit Tabelle und Dialog (keine Persistierung)"
+    ],
+    "gaps": [
+      "Firmenprofil: Rechte Karte 'GEWERKE & LEISTUNGEN' mit Tabelle und Bearbeiten-Button NICHT implementiert",
+      "Firmenprofil: Kopfzeile mit Firmenlogo, Name und 'Persönlicher HERO-Ansprechpartner'-Button NICHT implementiert",
+      "Seitendarstellung: Layout-Seite zeigt nur 'Farbgestaltung'-Karte, Doc fordert weiterer Darstellungsoptionen (ist hier minimal)",
+      "Schnittstellen-Seite NICHT implementiert (Abschnitte: DATANORM, IDS Connect, DAA Connect, Lexware Office, DATEV)",
+      "Zugriffsrechte: Aktuelle Implementierung zeigt nur 6 einfache Rechte; Doc fordert ~20+ Rechte in Themenblöcken (KONTAKTE & PROJEKTE, FIRMENEINSTELLUNGEN, SIDEBAR-MENUE/MODULE, MOBILE DOKUMENTE, AUFTRAEGE, PLANUNG, INDIVIDUELLE FELDER, HERO WALLET, AUSWERTUNGEN, DOKUMENTE SICHTBAR pro Typ) — STARK VEREINFACHT",
+      "Projekttypen: Dialog zum Bearbeiten eines Schritts zeigt nur Name, Basis-Status, Status-Code, Reihenfolge; fehlende 'Info-Icons' für Feldtipps",
+      "Email-Templates: Fehlender Dialog 'Email Template Einstellungen' mit Design-Layout-Switch (Standard/Minimal)",
+      "Informationsdokumente: Keine echte Datenbankintegration; Speicherung nicht funktional; doc fordert Bezeichnung, Dateiname, Kategorie-Spalten",
+      "Nummernkreise: NICHT im Adminbereich implementiert (Doc Abschnitt 16 listet auf, Abschnitt 20 zeigt Details: Präfix, Startnummer, nächste Nummer)",
+      "Alle Abschnitte: Keine RLS-Überprüfung auf company_id in der Dokumentation gefordert, aber implementiert vorhanden (✓)"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/admin/Informationsdokumente.tsx",
+        "desc": "Informationsdokumente: Speichern ist nicht funktional; Alert sagt 'können noch nicht gespeichert werden'; Daten sind Placeholder und nicht persistent",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/admin/Zugriffsrechte.tsx",
+        "desc": "Zugriffsrechte-Matrix ist stark vereinfacht (6 Rechte vs. 20+ im Doc); Es gibt keine Rollen×Recht-Kombinationen mit unterschiedlichen Stufen wie 'alle/Niederlassung/eigene'; Keine Dokumenttyp-spezifischen Sichtbarkeitsrechte",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/admin/Firmenprofil.tsx",
+        "desc": "Firmenprofil zeigt nur Firmendaten und Logo, nicht die in Doc geforderte Kopfzeile mit Support-Button und rechte Karte 'GEWERKE & LEISTUNGEN'",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/admin/EmailTemplates.tsx",
+        "desc": "Fehlender Dialog 'Email Template Einstellungen' für Design-Layout-Switch (Standard/Minimal) - Doc Abschnitt 20.3",
+        "severity": "mittel"
+      }
+    ],
+    "improvements": [
+      "Firmenprofil: Header-Komponente mit Logo, Firmenname, Gewerke-Übersicht und Support-Ansprechpartner-Link hinzufügen",
+      "Firmenprofil: Rechte Karte 'GEWERKE & LEISTUNGEN' mit Tabelle und Bearbeiten-Dialog implementieren",
+      "Schnittstellen-Seite komplett neu: Karten für DATANORM, IDS Connect, DAA Connect, Lexware Office, DATEV mit Links und Config-Buttons",
+      "Zugriffsrechte: Matrix ausbauen auf vollständige Rechte-Struktur mit Themenblöcken, Stufen-Dropdowns (alle/Niederlassung/eigene) und Dokumenttyp-Filter",
+      "Nummernkreise: Neue Admin-Seite mit Tabelle (Name, Präfix, Startnummer, nächste Nummer) und CRUD-Dialog",
+      "Email-Templates: Dialog 'Einstellungen' mit Design-Layout-Radio-Buttons (Standard/Minimal) hinzufügen",
+      "Informationsdokumente: Vollständige DB-Integration mit Datei-Upload, Kategorie-Feld, Persistierung statt Placeholders",
+      "Seitendarstellung: Zusätzliche Einstellungsgruppen für Logo-Anzeige, Icons, Schriftarten, Layout-Optionen (wie im Dokument angedeutet)",
+      "Projekttypen-Dialog: Info-Icons bei Name, Basis-Status, Reihenfolge mit Tooltips hinzufügen",
+      "Konsistenz: PageHeader-Untertitel und Icons in allen Admin-Seiten nutzen (teils bereits vorhanden, teils fehlend)"
+    ]
+  },
+  {
+    "module": "Auswertungen (Reporting)",
+    "coverage": "teilweise",
+    "present": [
+      "4 von 7 Reitern implementiert: Umsätze, Projekte, Kunden, Mitarbeitende",
+      "KPI-Kennzahlen: Netto/Brutto-Summen, Rechnungszähler, Durchschnittswerte",
+      "Diagramme: Liniendiagramm (Umsatz pro Monat), mehrere Balkendiagramme (Gewerke, Kunden, Mitarbeiter, Kategorien)",
+      "Leerzustände mit EmptyState-Komponente und LoadingState",
+      "RLS & company_id-Filter in allen Queries konsistent angewendet",
+      "Summen- und Aggregationslogik (monatlich, nach Gewerk, nach Person)",
+      "Stunden-Umrechnung (Minuten → Stunden) korrekt",
+      "Null-Guards mit Nullcoalescing-Operator",
+      "5 Hook-Funktionen: useRevenueReport, useDocTypeCounts, useProjectReport, useCustomerReport, useTimeReport"
+    ],
+    "gaps": [
+      "3 von 7 Reitern fehlen: 'Artikel & Leistungen', 'Umsatz- und Projektübersicht', 'Projektkarte'",
+      "Filterleisten komplett fehlend (Doc 37: Dokumentendatum, Gewerk, Projekt-ID, Kundennummer, Mitarbeiter, etc.)",
+      "Widget-Konfiguration über Drei-Punkte-Menü fehlt",
+      "Segelboot-Platzhalter nicht implementiert (nur Inbox-Icon), Text sagt 'Noch keine ...' statt 'Keine Ergebnisse!'",
+      "Artikel & Leistungen - Auswertung: Keine 'Top 10 nach Marge' und 'Top 10 Meistverkaufte'",
+      "Umsatz pro Zeitraum und pro Quelle fehlt (nur monatlich vorhanden)",
+      "Liniendiagramm 'Abgeschlossene vs. Erstellte Projekte je Monat' fehlt",
+      "Zeitverlauf-Diagramm 'Stunden pro Tag' fehlt (nur nach Person/Kategorie)",
+      "Thematische Blöcke mit Überschriften (z. B. 'Allgemeine Kennzahlen') fehlen",
+      "Tab-Titel-Diskrepanz: Doc sagt 'Umsätze - Details', Impl. hat nur 'Umsätze'"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Auswertungen.tsx",
+        "desc": "EmptyState-Icon ist Inbox statt Segelboot (Zeile 70). Doc 37 verlangt: 'erscheint ein Segelboot-Platzhalter mit Keine Ergebnisse!'",
+        "severity": "niedrig"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Auswertungen.tsx",
+        "desc": "EmptyState-Text sagt 'Noch keine Rechnungen vorhanden' / 'Noch keine Dokumente vorhanden'. Doc verlangt: 'Keine Ergebnisse!'",
+        "severity": "niedrig"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/hooks/queries/useReports.ts",
+        "desc": "Inkonsistenz: useDocTypeCounts zeigt ALLE Dokumente (keine INVOICE_TYPES-Filterung), während useRevenueReport nur INVOICE_TYPES zeigt (Linie 163 fehlt .in Filter). Aggregationen sind nicht konsistent.",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Auswertungen.tsx",
+        "desc": "Dynamische BarChart-Höhe berechnet mit empirischem Faktor (Math.max(280, rep.top.length * 38)). Bei wenigen Daten bleibt große weiße Fläche, bei vielen könnte es quetschen. Sollte normalisiert sein (z. B. min-h-[280px] + responsive scaling).",
+        "severity": "niedrig"
+      }
+    ],
+    "improvements": [
+      "Implementiere 3 fehlende Tabs: Artikel & Leistungen (mit EK/VK-Margen-Auswertung), Umsatz- und Projektübersicht (Dashboard kombinieren), Projektkarte (Geo-Visualisierung)",
+      "Filterleisten: Date-Range-Picker + Dropdowns (Gewerk, Projekt-ID, Kundennummer, Mitarbeiter, Quelle, Status) für alle Tabs, mit URL-Persistierung",
+      "Widget-Konfiguration: Drei-Punkte-Menü auf jeder Card (Minimize, Export, Settings) basierend auf CardContext oder State",
+      "Segelboot-Icon (aus lucide-react: Sailboat) statt Inbox; Text auf 'Keine Ergebnisse!' standardisieren",
+      "Artikel & Leistungen Hook: useArticleReport() mit Positionen-Aggregation, Marge-Berechnung ((VK - EK) / VK), Top-10 by Marge % + Top-10 by Quantity",
+      "Umsatz pro Zeitraum: Zusätzliches Chart mit filterbar pro Monat/Woche/Tag; Umsatz pro Quelle: Stacked Bar oder Pie",
+      "Projekte Tab: Zusätzliches Liniendiagramm 'Abgeschlossene vs. Erstellte Projekte je Monat' (benötigt Status-Filter)",
+      "Mitarbeitende Tab: Zusätzliches Liniendiagramm 'Stunden im Zeitverlauf (pro Tag)' basierend auf time_entries.entry_date",
+      "Thematische Abschnitte: Wrapper-Divs mit `<h3 className='font-medium text-lg mb-4'>Allgemeine Kennzahlen</h3>` vor KPI-Card-Grids",
+      "Fix: useDocTypeCounts.in(INVOICE_TYPES) hinzufügen für Konsistenz mit useRevenueReport, ODER separate Tab für alle Dokumenttypen",
+      "BarChart-Höhenlogik: min-h-[280px] als Basis, dann max-h-[calc(280px + ...)] mit overflow:auto, statt Math.max()"
+    ]
+  },
+  {
+    "module": "shell-design (Abschnitte 1, 2, 15, 19)",
+    "coverage": "teilweise",
+    "present": [
+      "Dunkle Seitenleiste (Anthrazit) mit heller Seitenleiste rechts",
+      "Sidebar mindbar/einklappbar (PanelLeftClose-Icon, onToggle-Funktion)",
+      "Logo-Platzhalter mit Hammer-Icon oder Company-Logo-Upload",
+      "Firmenname + \"HANDWERKER SOFTWARE\" Untertitel in Sidebar",
+      "Suchfeld mit Lupensymbol, Platzhalter \"Suche\" und \"Strg K\" Tastaturkürzel-Label",
+      "Komplette Navigation mit allen 20 Menüpunkten (Übersicht, Auswertungen, Kontakte, Projekte, Dokumente, Artikelstamm, Lager, Wartungsverträge, Aufträge, Aufgaben, Planung, Buchhaltung, Persönliche Daten, Mitarbeiterverwaltung, Firmeneinstellungen)",
+      "Aufklappbare Menü-Einträge mit Chevron-Icon und Untermenüs",
+      "Aktiver Menüpunkt mit dunkelgrüner Hintergrund + hellem grünem vertikalem Balken (inset 3px 0 0)",
+      "Grüne Hervorhebung (aktiv) und helles Grau (neutral) für Menüeinträge",
+      "Footer mit \"Einklappen\"-Button und Textlinks (AGB, Datenschutz, Impressum)",
+      "Header-Leiste oben rechts mit \"+Neu\"-Button, Hilfe-Icon, Glocke mit Badge, Avatar mit Initiale",
+      "Schnellanlegen-Menü mit 6 Einträgen (Projekt, Kontakt, Aufgabe, Dokument, Termin, Auftrag)",
+      "Benutzer-Dropdown-Menü (Profil, Firmeneinstellungen, Abmelden)",
+      "Dashboard mit 8 Karten im Raster (3-spaltig auf lg)",
+      "Dashboard-Karten mit Icon, Überschrift, Trennlinie, Text und Action-Buttons",
+      "Textfarbcodierung auf Dashboard: rot für Werte (0 Projekte), grün für positive Werte",
+      "Designsystem mit HSL-Farben und CSS-Variablen",
+      "Primärfarbe #71c837 (Grün) als Akzentfarbe für Hauptaktionen",
+      "Sekundär-Farben (Grau), Links (Blau #2563EB), Warnung/Fehler (Rot)",
+      "Themensystem mit Live-Vorschau in Seitendarstellung",
+      "PageHeader-Komponente mit Title, Subtitle und Actions-Slot",
+      "Rich-Typografie mit dünnen Überschriften (font-weight 300-400)",
+      "Serifenlose Schrift (system font-family mit Fallbacks)",
+      "Outline-Icons von Lucide React durchgehend",
+      "Profil-Seite (Persönliche Daten) mit Formularfeldern"
+    ],
+    "gaps": [
+      "Globale Suche mit Strg+K: Label vorhanden, aber keine CommandDialog/Palette implementiert - nur statisches Suchfeld",
+      "PV-Installationen, Dachdecken, Montagearbeiten als Gewerke-Pipelines mit Submenüs nicht implementiert (nur \"Projekte\" mit 3 Subpunkten, nicht 4 Gewerke)",
+      "HERO-Logo mit Diamant-Symbol nicht custom implementiert (nur Company-Logo oder Hammer-Placeholder)",
+      "Benachrichtigungs-Badge zeigt nur statischen Punkt (bg-primary), keine dynamische Zahl/Zähler",
+      "Hilfe-/Feedback-Icon vorhanden, aber kein Dropdown/Menü dahinter",
+      "Avatar Dropdown in Header zeigt nur \"Profil\", \"Firmeneinstellungen\", \"Abmelden\" - fehlen: Benachrichtigungen, Einstellungen, Sprache, Dark Mode Toggle",
+      "Dashboard: nur 8 Karten statt der im Doc beschriebenen 8+ (z.B. Aufgaben mit Link zu Aufgaben-Liste fehlt das \"2 offene Aufgaben\"-Widget mit klickbaren Aufgaben-Links)",
+      "Dashboard Dokumente-Karte: Text ist generisch, fehlt Link zu \"Angebote/Rechnungen\"-Beispiele oder Funktion",
+      "Dashboard Aufgaben: zeigt keine konkret offenen Aufgaben (würde \"Es liegen 2 offene Aufgaben vor\" mit Aufgaben-Links erfordern)",
+      "Dashboard Buchhaltung-Karte: fehlt zweiter Button \"Zum Mahnwesen\" (nur \"Zur Buchhaltung\")",
+      "Einstellungen-Karte: zeigt keine Links zu \"Firma\", \"Mitarbeiter\", \"Datenschutz\" (nur Button \"Zu den Einstellungen\")",
+      "Suchfeld in Sidebar: funktioniert nicht (keine Handler, nur visueller Placeholder)",
+      "Fußzeilen-Links (AGB, Datenschutz, Impressum): sind nicht klickbar/verlinkt, nur Textlabels",
+      "Responsive Design: Navigation kollabiert nicht auf Mobile, Sidebar-Toggle ist vorhanden aber kein Mobile-first Hamburger-Menü",
+      "RLS (Row-Level Security) in Sidebar NAV: Navigation ist hardcoded, nicht dynamisch basierend auf Benutzerrechten/company_id"
+    ],
+    "bugs": [
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/components/AppSidebar.tsx",
+        "desc": "Suchfeld ist nicht funktional (Zeile 119-126): kein onClick/onChange Handler, nur visueller Placeholder. Das Suchfeld soll Strg+K ausführen und eine globale Command Palette öffnen, tut das aber nicht.",
+        "severity": "hoch"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/components/AppSidebar.tsx",
+        "desc": "Fußzeilen-Links (Zeile 146-148) sind nicht interaktiv (keine onClick, kein Link). Laut Doc sollen \"AGB\", \"Datenschutz\", \"Impressum\" klickbare Links sein.",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/components/AppHeader.tsx",
+        "desc": "Bell-Icon zeigt statischen grünen Punkt, keine Zahl/Badge mit Benachrichtigungscount. Doc fordert grünes Zähler-Badge (z.B. \"13\").",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/components/AppHeader.tsx",
+        "desc": "Hilfe-Icon (HelpCircle, Zeile 36-38) ist ein dummy Button ohne Funktion/Dropdown. Doc sieht Sprechblase mit Fragezeichen + Dropdown/Menü vor.",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Dashboard.tsx",
+        "desc": "Aufgaben-Karte (Zeile 71-73): zeigt nur generischen Text \"Behalten Sie Ihre offenen Aufgaben im Blick\", nicht \"Es liegen 2 offene Aufgaben vor\" mit spezifischen Aufgaben-Links wie im Doc gefordert.",
+        "severity": "mittel"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Dashboard.tsx",
+        "desc": "Buchhaltung-Karte (Zeile 83-85): hat nur einen Button \"Zur Buchhaltung\", fehlt zweiter Button \"Zum Mahnwesen\" wie im Doc beschrieben.",
+        "severity": "niedrig"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/pages/Dashboard.tsx",
+        "desc": "Einstellungen-Karte (Zeile 91-93): fehlen die Inline-Links zu \"Firma\", \"Mitarbeiter\", \"Datenschutz\" im Kartencontent (Doc Zeile 31).",
+        "severity": "niedrig"
+      },
+      {
+        "file": "/Users/christophnapetschnig/Developer/neuedemoapp/src/lib/navigation.ts",
+        "desc": "Navigation zeigt nur \"Projekte\" mit 3 Subpunkten, nicht die laut Doc geforderten 4 Gewerke-Pipelines (Projekte, PV-Installationen, Dachdecken, Montagearbeiten) mit eigenen Pipelines/Untermenüs (Doc Zeile 46-49).",
+        "severity": "hoch"
+      }
+    ],
+    "improvements": [
+      "Globale Suche implementieren: Strg+K soll CommandDialog mit Suche über Projekte, Kontakte, Dokumente öffnen (cmdk-Komponente existiert bereits, aber nicht verbunden)",
+      "Gewerke-Pipelines hinzufügen: Dynamisches Menü für Projekte/PV-Installationen/Dachdecken/Montagearbeiten mit Submenüs (Überfällige, Alle Offenen, Workflow-Phasen mit Zählern)",
+      "Benachrichtigungs-Badge: Badge-Komponente mit dynamischer Zahl (z.B. \"13\") anstelle statischer Punkt",
+      "Hilfe-Icon Funktion: Dropdown-Menü oder Modal mit Feedback/Support-Kontakt",
+      "Avatar-Dropdown erweitern: Optionen für Dark Mode Toggle, Sprache, weitere Profil-Einstellungen hinzufügen",
+      "Dashboard-Aufgaben: Query für offene Aufgaben integrieren, mit klickbaren Task-Links im Widget",
+      "Fußzeilen-Links aktivieren: AGB, Datenschutz, Impressum als externe Links oder interne Routes",
+      "Suchfeld-Handler: onClick → CommandDialog öffnen oder zu Suchseite navigieren",
+      "Responsive Mobile: Hamburger-Menü für Mobile-Größen, Sidebar zu permanentem Drawer konvertieren",
+      "RLS in Navigation: Navigation Items basierend auf Benutzerrechten/Rollen filtern (company_id + role check)",
+      "HERO-Logo: Custom SVG für Diamant-Symbol + Markentext im Brand-Bereich",
+      "PageHeader-Konsistenz: In allen Seiten PageHeader.tsx nutzen (Profil.tsx macht das, andere noch nicht konsequent)"
+    ]
+  }
+]

@@ -19,15 +19,10 @@ import {
   useDocumentTexts, useUpsertDocumentText, type DocumentText,
 } from "@/hooks/queries/useDocConfig";
 import { Plus } from "lucide-react";
+import { DOC_TYPES } from "@/lib/documentTypes";
 
-const BASE_TYPES = [
-  { v: "angebot", l: "Angebot" },
-  { v: "auftrag", l: "Auftrag" },
-  { v: "lieferschein", l: "Lieferschein" },
-  { v: "rechnung", l: "Rechnung" },
-  { v: "gutschrift", l: "Gutschrift" },
-  { v: "mahnung", l: "Mahnung" },
-];
+// Alle Dokumenttypen aus der zentralen Konfiguration (statt hartcodierter Teilmenge).
+const BASE_TYPES = Object.values(DOC_TYPES).map((t) => ({ v: t.base, l: t.label }));
 
 const SOURCE_LABEL: Record<string, string> = {
   system: "System",

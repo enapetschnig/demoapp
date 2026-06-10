@@ -27,7 +27,10 @@ export function useUpsertReceipt() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Partial<Receipt> & { id?: string }) => {
-      const body = { ...payload, company_id: company!.id } as TablesInsert<"receipts">;
+      // Offener Betrag konsistent aus Status + Brutto ableiten.
+      const gross = Number(payload.gross_amount ?? 0);
+      const open = payload.status === "bezahlt" ? 0 : gross;
+      const body = { ...payload, company_id: company!.id, open_amount: open } as TablesInsert<"receipts">;
       if (payload.id) {
         const { data, error } = await supabase
           .from("receipts")

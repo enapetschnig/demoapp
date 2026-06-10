@@ -31,7 +31,17 @@ export function useUpsertTimeEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Partial<TimeEntry> & { id?: string }) => {
-      const body = { ...payload, company_id: company!.id } as TablesInsert<"time_entries">;
+      // Pausenregel aus den Firmeneinstellungen automatisch anwenden,
+      // sofern keine Pause explizit gesetzt ist (gesetzlich: >6h 30min, >9h 45min).
+      const rule = (company?.settings as Record<string, unknown> | undefined)?.break_rule as string | undefined;
+      let breakMin = payload.break_minutes;
+      if (breakMin == null) {
+        const dur = Number(payload.duration_minutes ?? 0);
+        if (rule === "gesetzlich") breakMin = dur > 540 ? 45 : dur > 360 ? 30 : 0;
+        else if (rule === "fest") breakMin = 30;
+        else breakMin = 0;
+      }
+      const body = { ...payload, company_id: company!.id, break_minutes: breakMin } as TablesInsert<"time_entries">;
       if (payload.id) {
         const { data, error } = await supabase
           .from("time_entries")

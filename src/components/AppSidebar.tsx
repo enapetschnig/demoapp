@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { NAV, type NavItem } from "@/lib/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProjectTypes } from "@/hooks/queries/useProjects";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Search, Hammer, PanelLeftClose } from "lucide-react";
+import { ChevronDown, Search, Hammer, PanelLeftClose, FolderKanban } from "lucide-react";
 
 function MenuEntry({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const location = useLocation();
   const Icon = item.icon;
   const hasChildren = !!item.children?.length;
-  const childActive = item.children?.some((c) => location.pathname === c.to.split("?")[0]);
+  const here = location.pathname + location.search;
+  const childActive = item.children?.some((c) => (c.to.includes("?") ? here === c.to : location.pathname === c.to));
   const selfActive = item.to && (item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to));
   const [open, setOpen] = useState<boolean>(!!childActive);
 
@@ -63,7 +65,8 @@ function MenuEntry({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       {open && !collapsed && (
         <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-sidebar-border pl-3">
           {item.children!.map((c) => {
-            const active = location.pathname === c.to.split("?")[0];
+            const here = location.pathname + location.search;
+            const active = c.to.includes("?") ? here === c.to : location.pathname === c.to;
             return (
               <NavLink
                 key={c.to}
@@ -86,8 +89,26 @@ function MenuEntry({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   );
 }
 
-export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function AppSidebar({ collapsed, onToggle, onOpenSearch }: { collapsed: boolean; onToggle: () => void; onOpenSearch?: () => void }) {
   const { company } = useAuth();
+  const { data: projectTypes = [] } = useProjectTypes();
+
+  // Statisches "Projekte" durch dynamische Gewerk-Pipelines (je project_type) ersetzen.
+  const nav = useMemo<NavItem[]>(() => {
+    return NAV.flatMap((item) => {
+      if (item.label !== "Projekte") return [item];
+      const gewerke: NavItem[] = projectTypes.map((pt) => ({
+        label: pt.name,
+        icon: FolderKanban,
+        children: [
+          { label: "Alle Offenen", to: `/projekte?type=${pt.id}` },
+          { label: "Überfällige Projekte", to: `/projekte?type=${pt.id}&filter=ueberfaellig` },
+          ...(pt.steps ?? []).map((s) => ({ label: s.name, to: `/projekte?type=${pt.id}&step=${s.id}` })),
+        ],
+      }));
+      return [{ label: "Projekte", icon: FolderKanban, to: "/projekte" }, ...gewerke];
+    });
+  }, [projectTypes]);
 
   return (
     <aside
@@ -118,18 +139,29 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
       {/* Suche */}
       {!collapsed && (
         <div className="px-3 pb-2">
-          <div className="flex items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-sidebar-foreground/60">
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className="flex w-full items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+          >
             <Search className="h-4 w-4" />
-            <span className="flex-1 text-sm">Suche</span>
+            <span className="flex-1 text-left text-sm">Suche</span>
             <kbd className="rounded bg-sidebar/60 px-1.5 py-0.5 text-[10px]">Strg K</kbd>
-          </div>
+          </button>
+        </div>
+      )}
+      {collapsed && (
+        <div className="px-3 pb-2">
+          <button type="button" onClick={onOpenSearch} className="flex w-full justify-center rounded-md bg-sidebar-accent py-1.5 text-sidebar-foreground/60 hover:text-sidebar-foreground">
+            <Search className="h-4 w-4" />
+          </button>
         </div>
       )}
 
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-        {NAV.map((item) => (
-          <MenuEntry key={item.label} item={item} collapsed={collapsed} />
+        {nav.map((item, i) => (
+          <MenuEntry key={`${item.label}-${i}`} item={item} collapsed={collapsed} />
         ))}
       </nav>
 

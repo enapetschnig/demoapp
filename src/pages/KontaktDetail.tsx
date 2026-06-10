@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useContact } from "@/hooks/queries/useContacts";
+import { useAuth } from "@/contexts/AuthContext";
 import { ContactDialog } from "@/components/ContactDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -16,32 +17,33 @@ import { Pencil, Mail, Phone, MapPin, ArrowLeft } from "lucide-react";
 export default function KontaktDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { company } = useAuth();
   const { data: contact, isLoading } = useContact(id);
   const [editOpen, setEditOpen] = useState(false);
 
   const { data: documents = [] } = useQuery({
-    queryKey: ["contact-docs", id],
-    enabled: !!id,
+    queryKey: ["contact-docs", id, company?.id],
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("documents").select("id,base_type,number,gross_amount,status,doc_date").eq("customer_id", id!).order("doc_date", { ascending: false });
+      const { data } = await supabase.from("documents").select("id,base_type,number,gross_amount,status,doc_date").eq("company_id", company!.id).eq("customer_id", id!).order("doc_date", { ascending: false });
       return data ?? [];
     },
   });
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["contact-projects", id],
-    enabled: !!id,
+    queryKey: ["contact-projects", id, company?.id],
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("projects").select("id,project_number,name,value").eq("customer_id", id!).order("created_at", { ascending: false });
+      const { data } = await supabase.from("projects").select("id,project_number,name,value").eq("company_id", company!.id).eq("customer_id", id!).order("created_at", { ascending: false });
       return data ?? [];
     },
   });
 
   const { data: log = [] } = useQuery({
-    queryKey: ["contact-log", id],
-    enabled: !!id,
+    queryKey: ["contact-log", id, company?.id],
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("activity_log").select("*").eq("entity_type", "contact").eq("entity_id", id!).order("created_at", { ascending: false });
+      const { data } = await supabase.from("activity_log").select("*").eq("company_id", company!.id).eq("entity_type", "contact").eq("entity_id", id!).order("created_at", { ascending: false });
       return data ?? [];
     },
   });

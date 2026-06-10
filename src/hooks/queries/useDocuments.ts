@@ -41,7 +41,7 @@ export function useDocument(id: string | undefined) {
 export interface SaveItem {
   kind: string; article_id?: string | null; service_id?: string | null;
   name?: string; description?: string; quantity?: number; unit?: string;
-  unit_price?: number; purchase_price?: number; discount_percent?: number;
+  unit_price?: number; purchase_price?: number; markup_percent?: number; discount_percent?: number;
   vat_rate?: number; time_minutes?: number;
 }
 export interface SavePayload {

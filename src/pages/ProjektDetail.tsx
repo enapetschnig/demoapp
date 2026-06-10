@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject, useProjectTypes, useMoveProjectStep, useActivityLog, useAddLogEntry } from "@/hooks/queries/useProjects";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ const TABS = [
 export default function ProjektDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { company } = useAuth();
   const { data: project, isLoading } = useProject(id);
   const { data: types = [] } = useProjectTypes();
   const move = useMoveProjectStep();
@@ -30,9 +32,9 @@ export default function ProjektDetail() {
   const [comment, setComment] = useState("");
 
   const { data: documents = [] } = useQuery({
-    queryKey: ["project-docs", id],
-    enabled: !!id,
-    queryFn: async () => (await supabase.from("documents").select("id,base_type,number,gross_amount,status,doc_date").eq("project_id", id!).order("doc_date", { ascending: false })).data ?? [],
+    queryKey: ["project-docs", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("documents").select("id,base_type,number,gross_amount,status,doc_date").eq("company_id", company!.id).eq("project_id", id!).order("doc_date", { ascending: false })).data ?? [],
   });
 
   if (isLoading) return <div className="text-muted-foreground">Lädt…</div>;

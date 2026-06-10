@@ -788,6 +788,50 @@ export type Database = {
           },
         ]
       }
+      document_templates: {
+        Row: {
+          base_type: string
+          company_id: string
+          created_at: string
+          id: string
+          intro_text: string | null
+          items: Json
+          last_used_at: string | null
+          name: string
+          outro_text: string | null
+        }
+        Insert: {
+          base_type?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          intro_text?: string | null
+          items?: Json
+          last_used_at?: string | null
+          name: string
+          outro_text?: string | null
+        }
+        Update: {
+          base_type?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          intro_text?: string | null
+          items?: Json
+          last_used_at?: string | null
+          name?: string
+          outro_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_texts: {
         Row: {
           base_type: string | null
@@ -1127,6 +1171,7 @@ export type Database = {
           company_id: string
           created_at: string
           document_id: string
+          fee: number
           id: string
           level: number
           note: string | null
@@ -1136,6 +1181,7 @@ export type Database = {
           company_id: string
           created_at?: string
           document_id: string
+          fee?: number
           id?: string
           level?: number
           note?: string | null
@@ -1145,6 +1191,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           document_id?: string
+          fee?: number
           id?: string
           level?: number
           note?: string | null

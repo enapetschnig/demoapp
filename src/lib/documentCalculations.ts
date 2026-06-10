@@ -7,6 +7,7 @@ export interface CalcItem {
   quantity?: number | null;
   unit_price?: number | null;
   purchase_price?: number | null;
+  markup_percent?: number | null;
   discount_percent?: number | null;
   vat_rate?: number | null;
   time_minutes?: number | null;
@@ -29,7 +30,11 @@ export interface CalcResult {
 
 export function lineNet(it: CalcItem): number {
   if (it.kind !== "artikel" && it.kind !== "leistung") return 0;
-  return r2((it.quantity ?? 0) * (it.unit_price ?? 0) * (1 - (it.discount_percent ?? 0) / 100));
+  return r2(
+    (it.quantity ?? 0) * (it.unit_price ?? 0)
+    * (1 + (it.markup_percent ?? 0) / 100)
+    * (1 - (it.discount_percent ?? 0) / 100),
+  );
 }
 
 export function calcDocument(

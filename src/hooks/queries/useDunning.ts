@@ -84,10 +84,18 @@ export function useCreateDunning() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateDunningInput) => {
+      const newLevel = input.current_level + 1;
+      // Gebühr aus der passenden Mahnstufe übernehmen (bevorzugt Typ "mahnung").
+      const { data: levels } = await supabase
+        .from("dunning_levels").select("level,type,fee")
+        .eq("company_id", company!.id).eq("level", newLevel);
+      const match = (levels ?? []).find((l) => l.type === "mahnung") ?? (levels ?? [])[0];
+      const fee = Number(match?.fee ?? 0);
       const body: TablesInsert<"dunnings"> = {
         company_id: company!.id,
         document_id: input.document_id,
-        level: input.current_level + 1,
+        level: newLevel,
+        fee,
         sent_at: toISODate(),
         note: input.note ?? null,
       };

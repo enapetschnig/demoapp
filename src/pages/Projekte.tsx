@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
@@ -17,7 +17,11 @@ const projId = (p: ProjectRow) => `${p.project_types?.code ?? "PRJ"}-${p.project
 
 export default function Projekte({ autoNew }: { autoNew?: boolean }) {
   const navigate = useNavigate();
-  const { data: projects = [], isLoading } = useProjects();
+  const [sp] = useSearchParams();
+  const typeFilter = sp.get("type");
+  const stepFilter = sp.get("step");
+  const overdue = sp.get("filter") === "ueberfaellig";
+  const { data: allProjects = [], isLoading } = useProjects();
   const { data: types = [] } = useProjectTypes();
   const move = useMoveProjectStep();
   const [view, setView] = useState<"liste" | "pipeline">("liste");
@@ -26,7 +30,23 @@ export default function Projekte({ autoNew }: { autoNew?: boolean }) {
   const [dragId, setDragId] = useState<string | null>(null);
 
   useEffect(() => { if (autoNew) setDialog(true); }, [autoNew]);
-  useEffect(() => { if (!kanbanType && types.length) setKanbanType(types.find((t) => t.is_standard)?.id ?? types[0].id); }, [types, kanbanType]);
+  useEffect(() => {
+    if (typeFilter) setKanbanType(typeFilter);
+    else if (!kanbanType && types.length) setKanbanType(types.find((t) => t.is_standard)?.id ?? types[0].id);
+  }, [types, kanbanType, typeFilter]);
+
+  // Sidebar-Filter (Gewerk / Phase / überfällig) anwenden
+  const projects = useMemo(() => {
+    const now = Date.now();
+    return allProjects.filter((p) => {
+      if (typeFilter && p.project_type_id !== typeFilter) return false;
+      if (stepFilter && p.current_step_id !== stepFilter) return false;
+      if (overdue && !(p.reminder_at && new Date(p.reminder_at).getTime() < now)) return false;
+      return true;
+    });
+  }, [allProjects, typeFilter, stepFilter, overdue]);
+
+  const activeTypeName = types.find((t) => t.id === typeFilter)?.name;
 
   const columns: Column<ProjectRow>[] = [
     { key: "gewerk", header: "Gewerk", sortable: false, render: (p) => (
@@ -48,8 +68,8 @@ export default function Projekte({ autoNew }: { autoNew?: boolean }) {
   return (
     <div>
       <PageHeader
-        title="Projekte"
-        subtitle="Verwaltung der Firmenprojekte"
+        title={activeTypeName ?? "Projekte"}
+        subtitle={overdue ? "Überfällige Projekte" : activeTypeName ? "Verwaltung der Firmenprojekte" : "Verwaltung der Firmenprojekte"}
         actions={
           <>
             <div className="flex overflow-hidden rounded-md border">
