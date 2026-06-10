@@ -70,6 +70,12 @@ export default function DokumentEditor() {
     enabled: !!company?.id,
     queryFn: async () => (await supabase.from("document_texts").select("*").eq("company_id", company!.id)).data ?? [],
   });
+  // Layout-Konfiguration je Dokumenttyp (für PDF)
+  const { data: docTypeRows = [] } = useQuery({
+    queryKey: ["doc-type-layouts", company?.id],
+    enabled: !!company?.id,
+    queryFn: async () => (await supabase.from("document_types").select("base_type,layout").eq("company_id", company!.id)).data ?? [],
+  });
   const catalog = useCatalogSearch(search);
 
   // Bestehendes Dokument laden
@@ -170,6 +176,16 @@ export default function DokumentEditor() {
   const exportPdf = async () => {
     setPdfBusy(true);
     try {
+      const rawLayout = (docTypeRows.find((t) => t.base_type === baseType)?.layout ?? {}) as Record<string, unknown>;
+      const numOr = (v: unknown) => (v == null || v === "" ? undefined : Number(v));
+      const pdfLayout = {
+        marginTop: numOr(rawLayout.margin_top), marginLeft: numOr(rawLayout.margin_left),
+        marginBottom: numOr(rawLayout.margin_bottom), marginRight: numOr(rawLayout.margin_right),
+        fontFamily: (rawLayout.font_family as string) || undefined,
+        footer: (rawLayout.footer as string) || undefined,
+        showDescription: rawLayout.show_position_description !== false,
+      };
+      const hidePrices = rawLayout.hide_unit_prices === true;
       let pos = 0;
       const pdfItems: PdfItem[] = items.map((i) => ({
         position: i.kind === "titel" ? 0 : ++pos, name: i.name, description: i.description,
@@ -193,7 +209,9 @@ export default function DokumentEditor() {
         docTitle: docLabel(baseType), number: number ?? "ENTWURF",
         date: new Intl.DateTimeFormat("de-AT").format(new Date(`${docDate}T12:00:00`)),
         subject, introHtml: introText, outroHtml: outroText,
-        items: pdfItems, calc, showPrices: cfg.showPositions && baseType !== "lieferschein",
+        items: pdfItems, calc,
+        showPrices: cfg.showPositions && baseType !== "lieferschein" && !hidePrices,
+        layout: pdfLayout,
       }, `${docLabel(baseType)}_${number ?? "Entwurf"}.pdf`);
     } catch (e) { toast.error("PDF-Fehler: " + (e as Error).message); }
     finally { setPdfBusy(false); }

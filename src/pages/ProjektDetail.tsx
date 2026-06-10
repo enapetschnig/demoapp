@@ -9,16 +9,20 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { fmtEUR, fmtDate, fmtDateTime } from "@/lib/format";
+import { fmtEUR, fmtDate, fmtDateTime, fmtNumber } from "@/lib/format";
 import { docLabel } from "@/lib/documentTypes";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, User, FilePlus, GitBranch, ListChecks, FileText, MessageSquarePlus, CheckSquare, CalendarDays, Users } from "lucide-react";
+import { ArrowLeft, MapPin, User, FilePlus, GitBranch, ListChecks, FileText, MessageSquarePlus, CheckSquare, CalendarDays, Users, Image as ImageIcon, Clock, Package, BarChart3, Upload } from "lucide-react";
 
 const TABS = [
   { v: "logbuch", l: "Logbuch", icon: ListChecks },
+  { v: "bilder", l: "Bilder", icon: ImageIcon },
   { v: "dokumente", l: "Dokumente", icon: FileText },
-  { v: "aufgaben", l: "Aufgaben", icon: CheckSquare },
+  { v: "zeitlohn", l: "Zeit & Lohn", icon: Clock },
   { v: "termine", l: "Termine", icon: CalendarDays },
+  { v: "aufgaben", l: "Aufgaben", icon: CheckSquare },
+  { v: "material", l: "Materialbelege", icon: Package },
+  { v: "sollist", l: "Soll/Ist", icon: BarChart3 },
   { v: "beteiligte", l: "Beteiligte", icon: Users },
 ];
 
@@ -51,6 +55,49 @@ export default function ProjektDetail() {
     enabled: !!id && !!company?.id,
     queryFn: async () => (await supabase.from("appointments").select("id,title,start_at,end_at").eq("company_id", company!.id).eq("project_id", id!).order("start_at", { ascending: true })).data ?? [],
   });
+
+  const { data: zeiten = [] } = useQuery({
+    queryKey: ["project-zeit", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("time_entries")
+      .select("id,entry_date,duration_minutes,break_minutes,employee:employee_id(first_name,last_name),category:category_id(name)")
+      .eq("company_id", company!.id).eq("project_id", id!).order("entry_date", { ascending: false })).data ?? [],
+  });
+
+  const { data: belege = [] } = useQuery({
+    queryKey: ["project-belege", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("receipts")
+      .select("id,receipt_number,category,gross_amount,doc_date,type")
+      .eq("company_id", company!.id).eq("project_id", id!).order("doc_date", { ascending: false })).data ?? [],
+  });
+
+  const { data: bilder = [], refetch: refetchBilder } = useQuery({
+    queryKey: ["project-bilder", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => {
+      const { data } = await supabase.storage.from("project-files").list(`${company!.id}/${id}`, { sortBy: { column: "created_at", order: "desc" } });
+      return (data ?? []).filter((f) => f.name !== ".emptyFolderPlaceholder").map((f) => ({
+        name: f.name,
+        url: supabase.storage.from("project-files").getPublicUrl(`${company!.id}/${id}/${f.name}`).data.publicUrl,
+      }));
+    },
+  });
+
+  const uploadBild = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !company || !id) return;
+    const path = `${company.id}/${id}/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("project-files").upload(path, file, { upsert: true, contentType: file.type });
+    if (error) return toast.error(error.message);
+    toast.success("Bild hochgeladen");
+    refetchBilder();
+  };
+
+  // Soll/Ist (Nachkalkulation)
+  const istMaterial = belege.filter((b) => b.type !== "einnahme").reduce((s, b) => s + Number(b.gross_amount ?? 0), 0);
+  const istStunden = zeiten.reduce((s, z) => s + (Number(z.duration_minutes ?? 0) - Number(z.break_minutes ?? 0)) / 60, 0);
+  const istLohn = istStunden * 35;
 
   if (isLoading) return <div className="text-muted-foreground">Lädt…</div>;
   if (!project) return <div className="text-muted-foreground">Projekt nicht gefunden.</div>;
@@ -198,6 +245,69 @@ export default function ProjektDetail() {
                 <span className="text-muted-foreground">Phase</span>
                 <span className="font-medium">{project.current_step?.name ?? "—"}</span>
               </div>
+            </div>
+          )}
+
+          {tab === "bilder" && (
+            <div>
+              <label className="mb-3 inline-flex cursor-pointer items-center gap-1.5 rounded-md border bg-secondary px-3 py-1.5 text-sm">
+                <Upload className="h-4 w-4" /> Bild hochladen
+                <input type="file" accept="image/*" className="hidden" onChange={uploadBild} />
+              </label>
+              {bilder.length === 0 ? <p className="text-sm text-muted-foreground">Noch keine Bilder.</p> : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  {bilder.map((b) => (
+                    <a key={b.name} href={b.url} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-md border">
+                      <img src={b.url} alt={b.name} className="h-full w-full object-cover" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "zeitlohn" && (
+            zeiten.length === 0 ? <p className="text-sm text-muted-foreground">Keine erfassten Zeiten.</p> : (
+              <div>
+                <div className="mb-2 text-sm text-muted-foreground">Summe: <span className="font-medium text-foreground">{fmtNumber(istStunden, 1)} h</span> · Lohnkosten ca. {fmtEUR(istLohn)}</div>
+                <div className="divide-y">
+                  {zeiten.map((z) => {
+                    const emp = z.employee as { first_name?: string; last_name?: string } | null;
+                    const cat = z.category as { name?: string } | null;
+                    const h = (Number(z.duration_minutes ?? 0) - Number(z.break_minutes ?? 0)) / 60;
+                    return (
+                      <div key={z.id} className="flex items-center justify-between py-2 text-sm">
+                        <span>{fmtDate(z.entry_date)} · {[emp?.first_name, emp?.last_name].filter(Boolean).join(" ") || "—"}{cat?.name ? ` · ${cat.name}` : ""}</span>
+                        <span className="text-muted-foreground">{fmtNumber(h, 2)} h</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          )}
+
+          {tab === "material" && (
+            belege.length === 0 ? <p className="text-sm text-muted-foreground">Keine Materialbelege.</p> : (
+              <div className="divide-y">
+                {belege.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between py-2 text-sm">
+                    <span>{b.receipt_number ?? "Beleg"}{b.category ? ` · ${b.category}` : ""}</span>
+                    <span className="text-muted-foreground">{fmtDate(b.doc_date)} · {fmtEUR(Number(b.gross_amount))}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {tab === "sollist" && (
+            <div className="space-y-2 text-sm">
+              <p className="mb-2 text-muted-foreground">Nachkalkulation: kalkuliertes Volumen gegen tatsächliche Kosten.</p>
+              <div className="flex items-center justify-between border-b py-2"><span className="text-muted-foreground">Auftragsvolumen (Soll)</span><span className="font-medium">{fmtEUR(Number(project.value))}</span></div>
+              <div className="flex items-center justify-between border-b py-2"><span className="text-muted-foreground">Ist Material (Belege)</span><span>{fmtEUR(istMaterial)}</span></div>
+              <div className="flex items-center justify-between border-b py-2"><span className="text-muted-foreground">Ist Lohn ({fmtNumber(istStunden, 1)} h × 35 €)</span><span>{fmtEUR(istLohn)}</span></div>
+              <div className="flex items-center justify-between border-b py-2"><span className="text-muted-foreground">Ist Kosten gesamt</span><span className="font-medium">{fmtEUR(istMaterial + istLohn)}</span></div>
+              <div className="flex items-center justify-between py-2 text-base font-semibold"><span>Deckungsbeitrag</span><span className={Number(project.value) - istMaterial - istLohn >= 0 ? "text-success" : "text-destructive"}>{fmtEUR(Number(project.value) - istMaterial - istLohn)}</span></div>
             </div>
           )}
         </Card>

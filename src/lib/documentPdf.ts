@@ -19,10 +19,28 @@ export interface PdfData {
   docTitle: string; number: string; date: string; subject?: string;
   introHtml?: string; outroHtml?: string;
   items: PdfItem[]; calc: CalcResult; showPrices: boolean;
+  layout?: PdfLayout;
 }
+
+export interface PdfLayout {
+  marginTop?: number; marginLeft?: number; marginBottom?: number; marginRight?: number;
+  fontFamily?: string; footer?: string; showDescription?: boolean;
+}
+
+const FOOTER_TEXT = (mode: string | undefined, nr: string, company: string): string => {
+  switch (mode) {
+    case "page": return "Seite 1";
+    case "nr_page": return `${nr} · Seite 1`;
+    case "company_page": return `${company} · Seite 1`;
+    default: return `${nr} · ${company} · Seite 1`;
+  }
+};
 
 export function buildDocumentHtml(d: PdfData): string {
   const c = d.company;
+  const L = d.layout ?? {};
+  const font = L.fontFamily ? `${L.fontFamily}, Arial, sans-serif` : "Arial, Helvetica, sans-serif";
+  const showDesc = L.showDescription !== false;
   const senderLine = [c.name, c.street, `${c.zip ?? ""} ${c.city ?? ""}`.trim()].filter(Boolean).join(" · ");
   const rows = d.items.map((it) => {
     if (it.kind === "titel") {
@@ -32,7 +50,7 @@ export function buildDocumentHtml(d: PdfData): string {
       <td style="padding:6px;vertical-align:top">${it.position}</td>
       <td style="padding:6px;text-align:right;vertical-align:top">${fmtNumber(it.quantity, 2)}</td>
       <td style="padding:6px;vertical-align:top">${esc(it.unit ?? "")}</td>
-      <td style="padding:6px;vertical-align:top">${esc(it.name)}${it.description ? `<div style="color:#666;font-size:11px">${esc(it.description)}</div>` : ""}</td>
+      <td style="padding:6px;vertical-align:top">${esc(it.name)}${showDesc && it.description ? `<div style="color:#666;font-size:11px">${esc(it.description)}</div>` : ""}</td>
       ${d.showPrices ? `<td style="padding:6px;text-align:right;vertical-align:top">${fmtEUR(it.unit_price)}</td>
       <td style="padding:6px;text-align:right;vertical-align:top">${fmtEUR(it.line_net)}</td>` : `<td></td><td></td>`}
     </tr>`;
@@ -50,6 +68,7 @@ export function buildDocumentHtml(d: PdfData): string {
     </table>` : "";
 
   const footerParts = [
+    FOOTER_TEXT(L.footer, d.number, c.name),
     c.phone && `Tel: ${esc(c.phone)}`,
     c.email && esc(c.email),
     c.iban && `IBAN: ${esc(c.iban)}`,
@@ -57,7 +76,7 @@ export function buildDocumentHtml(d: PdfData): string {
     c.vat_id && `UID: ${esc(c.vat_id)}`,
   ].filter(Boolean).join(" · ");
 
-  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;width:180mm;padding:0">
+  return `<div style="font-family:${font};font-size:12px;color:#1a1a1a;width:180mm;padding:0">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div style="font-size:9px;color:#666;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:24px">${esc(senderLine)}</div>
       ${c.logo_url ? `<img src="${c.logo_url}" style="max-height:60px;max-width:160px;object-fit:contain" crossorigin="anonymous" />` : ""}
@@ -100,12 +119,17 @@ export async function downloadDocumentPdf(d: PdfData, filename: string) {
   const html2pdf = (await import("html2pdf.js")).default as unknown as (...a: unknown[]) => {
     set: (o: unknown) => { from: (e: HTMLElement) => { save: () => Promise<void> } };
   };
+  const L = d.layout ?? {};
+  const pad = (v: number | undefined, def: number) => `${v ?? def}mm`;
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.left = "-9999px";
   container.style.top = "0";
   container.style.background = "#fff";
-  container.style.padding = "15mm";
+  container.style.paddingTop = pad(L.marginTop, 15);
+  container.style.paddingLeft = pad(L.marginLeft, 15);
+  container.style.paddingBottom = pad(L.marginBottom, 15);
+  container.style.paddingRight = pad(L.marginRight, 15);
   container.innerHTML = buildDocumentHtml(d);
   document.body.appendChild(container);
   try {

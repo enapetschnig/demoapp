@@ -1,19 +1,25 @@
-import { ReactNode } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  ComposedChart,
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   Cell,
 } from "recharts";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { DataTable, type Column } from "@/components/DataTable";
 import { fmtEUR, fmtNumber } from "@/lib/format";
 import {
   useRevenueReport,
@@ -21,8 +27,15 @@ import {
   useProjectReport,
   useCustomerReport,
   useTimeReport,
+  useTopPositions,
+  useRevenueProjectsOverview,
+  periodRange,
+  PERIOD_OPTIONS,
+  type ReportPeriod,
+  type DateRange,
+  type TopPosition,
 } from "@/hooks/queries/useReports";
-import { BarChart3, FolderKanban, Users, Clock, Inbox, Loader2 } from "lucide-react";
+import { BarChart3, FolderKanban, Users, Clock, Package, LineChart as LineChartIcon, Inbox, Loader2 } from "lucide-react";
 
 const CHART_COLORS = [
   "hsl(var(--primary))",
@@ -90,9 +103,9 @@ const tooltipStyle = {
 
 // --- Tab: Umsätze ----------------------------------------------------------
 
-function UmsaetzeTab() {
-  const { data: rev, isLoading: revLoading } = useRevenueReport();
-  const { data: docTypes = [], isLoading: docLoading } = useDocTypeCounts();
+function UmsaetzeTab({ range }: { range: DateRange }) {
+  const { data: rev, isLoading: revLoading } = useRevenueReport(range);
+  const { data: docTypes = [], isLoading: docLoading } = useDocTypeCounts(range);
 
   return (
     <div className="space-y-6">
@@ -340,15 +353,168 @@ function MitarbeitendeTab() {
   );
 }
 
+// --- Tab: Artikel & Leistungen ---------------------------------------------
+
+const positionColumns: Column<TopPosition>[] = [
+  { key: "name", header: "Name", sortable: true, filterable: true },
+  {
+    key: "quantity",
+    header: "Menge",
+    sortable: true,
+    className: "text-right tabular-nums",
+    accessor: (r) => r.quantity,
+    render: (r) => fmtNumber(r.quantity, 2),
+  },
+  {
+    key: "net",
+    header: "Umsatz (netto)",
+    sortable: true,
+    className: "text-right tabular-nums",
+    accessor: (r) => r.net,
+    render: (r) => fmtEUR(r.net),
+  },
+];
+
+function ArtikelTab() {
+  const { data: positions = [], isLoading } = useTopPositions(10);
+
+  return (
+    <div className="space-y-6">
+      <ChartCard title="Top-10 meistverwendete Positionen (nach Menge)">
+        {isLoading ? (
+          <LoadingState />
+        ) : !positions.length ? (
+          <EmptyState text="Noch keine Positionen in zahlbaren Dokumenten vorhanden." />
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(280, positions.length * 40)}>
+            <BarChart
+              data={positions}
+              layout="vertical"
+              margin={{ top: 8, right: 24, left: 8, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(v) => fmtNumber(Number(v), 0)} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={180} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: number) => [fmtNumber(v, 2), "Menge"]}
+              />
+              <Bar dataKey="quantity" name="Menge" radius={[0, 4, 4, 0]}>
+                {positions.map((_, i) => (
+                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </ChartCard>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-medium">Positionen im Detail</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            data={positions}
+            columns={positionColumns}
+            loading={isLoading}
+            getRowId={(r) => r.name}
+            emptyText="Noch keine Positionen vorhanden."
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// --- Tab: Umsatz- & Projektübersicht ---------------------------------------
+
+function UebersichtTab({ range }: { range: DateRange }) {
+  const { data: rep, isLoading } = useRevenueProjectsOverview(range);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard label="Umsatz netto (Zeitraum)" value={fmtEUR(rep?.totalNet ?? 0)} />
+        <KpiCard label="Erstellte Projekte" value={fmtNumber(rep?.totalCreated ?? 0, 0)} />
+        <KpiCard label="Abgeschlossene Projekte" value={fmtNumber(rep?.totalCompleted ?? 0, 0)} />
+      </div>
+
+      <ChartCard title="Umsatz/Monat & Projekte/Monat">
+        {isLoading ? (
+          <LoadingState />
+        ) : !rep?.monthly.length ? (
+          <EmptyState text="Noch keine Daten für den gewählten Zeitraum." />
+        ) : (
+          <ResponsiveContainer width="100%" height={340}>
+            <ComposedChart data={rep.monthly} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={70} />
+              <YAxis
+                yAxisId="left"
+                tick={{ fontSize: 12 }}
+                tickFormatter={(v) => fmtNumber(Number(v), 0)}
+                width={70}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fontSize: 12 }}
+                allowDecimals={false}
+                width={40}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: number, name: string) =>
+                  name === "Umsatz netto" ? [fmtEUR(v), name] : [fmtNumber(v, 0), name]
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar yAxisId="right" dataKey="projectsCreated" name="Projekte erstellt" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="right" dataKey="projectsCompleted" name="Projekte abgeschlossen" fill="#34d399" radius={[4, 4, 0, 0]} />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="net"
+                name="Umsatz netto"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+      </ChartCard>
+    </div>
+  );
+}
+
 // --- Seite -----------------------------------------------------------------
 
 export default function Auswertungen() {
+  const [period, setPeriod] = useState<ReportPeriod>("this_year");
+  const range = useMemo(() => periodRange(period), [period]);
+
   return (
     <div>
       <PageHeader title="Auswertungen" subtitle="Kennzahlen und Diagramme zu Umsatz, Projekten, Kunden und Zeiten" />
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Dokumentendatum</span>
+        <Select value={period} onValueChange={(v) => setPeriod(v as ReportPeriod)}>
+          <SelectTrigger className="h-9 w-[220px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <Tabs defaultValue="umsaetze">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 flex-wrap">
           <TabsTrigger value="umsaetze" className="gap-1.5">
             <BarChart3 className="h-4 w-4" /> Umsätze
           </TabsTrigger>
@@ -358,15 +524,23 @@ export default function Auswertungen() {
           <TabsTrigger value="kunden" className="gap-1.5">
             <Users className="h-4 w-4" /> Kunden
           </TabsTrigger>
+          <TabsTrigger value="artikel" className="gap-1.5">
+            <Package className="h-4 w-4" /> Artikel & Leistungen
+          </TabsTrigger>
           <TabsTrigger value="mitarbeitende" className="gap-1.5">
             <Clock className="h-4 w-4" /> Mitarbeitende
           </TabsTrigger>
+          <TabsTrigger value="uebersicht" className="gap-1.5">
+            <LineChartIcon className="h-4 w-4" /> Umsatz- &amp; Projektübersicht
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="umsaetze"><UmsaetzeTab /></TabsContent>
+        <TabsContent value="umsaetze"><UmsaetzeTab range={range} /></TabsContent>
         <TabsContent value="projekte"><ProjekteTab /></TabsContent>
         <TabsContent value="kunden"><KundenTab /></TabsContent>
+        <TabsContent value="artikel"><ArtikelTab /></TabsContent>
         <TabsContent value="mitarbeitende"><MitarbeitendeTab /></TabsContent>
+        <TabsContent value="uebersicht"><UebersichtTab range={range} /></TabsContent>
       </Tabs>
     </div>
   );

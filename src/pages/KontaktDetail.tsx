@@ -48,6 +48,18 @@ export default function KontaktDetail() {
     },
   });
 
+  const { data: ansprechpartner = [] } = useQuery({
+    queryKey: ["contact-aps", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("contacts").select("id,first_name,last_name,email,phone").eq("company_id", company!.id).eq("parent_contact_id", id!).order("last_name")).data ?? [],
+  });
+
+  const { data: auftraege = [] } = useQuery({
+    queryKey: ["contact-orders", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("orders").select("id,order_number,title,status,start_at").eq("company_id", company!.id).eq("customer_id", id!).order("created_at", { ascending: false })).data ?? [],
+  });
+
   if (isLoading) return <div className="text-muted-foreground">Lädt…</div>;
   if (!contact) return <div className="text-muted-foreground">Kontakt nicht gefunden.</div>;
 
@@ -88,6 +100,8 @@ export default function KontaktDetail() {
               <TabsTrigger value="logbuch">Logbuch</TabsTrigger>
               <TabsTrigger value="dokumente">Dokumente ({documents.length})</TabsTrigger>
               <TabsTrigger value="projekte">Projekte ({projects.length})</TabsTrigger>
+              <TabsTrigger value="ansprechpartner">Ansprechpartner ({ansprechpartner.length})</TabsTrigger>
+              <TabsTrigger value="auftraege">Aufträge ({auftraege.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="dokumente" className="pt-3">
@@ -124,6 +138,32 @@ export default function KontaktDetail() {
                       <div className="text-xs text-link">{fmtDateTime(l.created_at)}</div>
                       <div className="font-medium">{l.title}</div>
                       <div className="text-muted-foreground">{l.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="ansprechpartner" className="pt-3">
+              {ansprechpartner.length === 0 ? <p className="text-sm text-muted-foreground">Keine Ansprechpartner hinterlegt.</p> : (
+                <div className="divide-y">
+                  {ansprechpartner.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between py-2 text-sm cursor-pointer hover:bg-muted/40 px-2 -mx-2 rounded" onClick={() => navigate(`/kontakte/${a.id}`)}>
+                      <span className="text-link">{[a.first_name, a.last_name].filter(Boolean).join(" ")}</span>
+                      <span className="text-muted-foreground">{a.email || a.phone || ""}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="auftraege" className="pt-3">
+              {auftraege.length === 0 ? <p className="text-sm text-muted-foreground">Keine Aufträge.</p> : (
+                <div className="divide-y">
+                  {auftraege.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between py-2 text-sm cursor-pointer hover:bg-muted/40 px-2 -mx-2 rounded" onClick={() => navigate("/auftraege")}>
+                      <span><span className="text-link">{o.order_number ?? "—"}</span> · {o.title}</span>
+                      <span className="text-muted-foreground">{o.status}</span>
                     </div>
                   ))}
                 </div>

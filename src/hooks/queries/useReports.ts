@@ -3,6 +3,41 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { INVOICE_TYPES } from "@/hooks/queries/usePayments";
 import { docLabel } from "@/lib/documentTypes";
+import { toISODate } from "@/lib/format";
+
+// ---------------------------------------------------------------------------
+// Zeitraum-Filter (Dokumentendatum). Wird in der Filterleiste der Auswertungen
+// gewählt und an die Umsatz-/Dokument-Hooks weitergereicht.
+// ---------------------------------------------------------------------------
+
+export type ReportPeriod = "this_year" | "this_month" | "last_12_months";
+
+export interface DateRange {
+  from: string; // YYYY-MM-DD (inklusive)
+  to: string; // YYYY-MM-DD (inklusive)
+}
+
+export const PERIOD_OPTIONS: { value: ReportPeriod; label: string }[] = [
+  { value: "this_year", label: "Dieses Jahr" },
+  { value: "this_month", label: "Dieser Monat" },
+  { value: "last_12_months", label: "Vorherige 12 Monate" },
+];
+
+// Liefert den ISO-Datumsbereich (von/bis, inklusive) für einen Zeitraum.
+export function periodRange(period: ReportPeriod, now: Date = new Date()): DateRange {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  switch (period) {
+    case "this_month":
+      return { from: toISODate(new Date(y, m, 1)), to: toISODate(new Date(y, m + 1, 0)) };
+    case "last_12_months":
+      // letzten 12 Monate bis Monatsende des aktuellen Monats
+      return { from: toISODate(new Date(y, m - 11, 1)), to: toISODate(new Date(y, m + 1, 0)) };
+    case "this_year":
+    default:
+      return { from: toISODate(new Date(y, 0, 1)), to: toISODate(new Date(y, 11, 31)) };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hilfstypen für aggregierte Auswertungsdaten.
@@ -79,6 +114,27 @@ export interface TimeReport {
   entryCount: number;
 }
 
+export interface TopPosition {
+  name: string;
+  quantity: number;
+  net: number;
+}
+
+export interface MonthlyOverview {
+  month: string; // "2026-01"
+  label: string; // "Jän 2026"
+  net: number; // Umsatz netto
+  projectsCreated: number; // im Monat erstellte Projekte
+  projectsCompleted: number; // im Monat abgeschlossene Projekte
+}
+
+export interface OverviewReport {
+  monthly: MonthlyOverview[];
+  totalNet: number;
+  totalCreated: number;
+  totalCompleted: number;
+}
+
 const MONTH_LABELS = [
   "Jän", "Feb", "Mär", "Apr", "Mai", "Jun",
   "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
@@ -105,19 +161,20 @@ const contactName = (c: {
 // Umsätze: monatlicher Umsatz aus rechnungsartigen Dokumenten + Typverteilung.
 // ---------------------------------------------------------------------------
 
-export function useRevenueReport() {
+export function useRevenueReport(range?: DateRange) {
   const { company } = useAuth();
   return useQuery({
-    queryKey: ["report", "revenue", company?.id],
+    queryKey: ["report", "revenue", company?.id, range?.from, range?.to],
     enabled: !!company?.id,
     queryFn: async (): Promise<RevenueReport> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("documents")
         .select("net_amount,gross_amount,doc_date")
         .eq("company_id", company!.id)
         .eq("is_deleted", false)
-        .in("base_type", INVOICE_TYPES)
-        .order("doc_date", { ascending: true });
+        .in("base_type", INVOICE_TYPES);
+      if (range) query = query.gte("doc_date", range.from).lte("doc_date", range.to);
+      const { data, error } = await query.order("doc_date", { ascending: true });
       if (error) throw error;
       const rows = data ?? [];
 
@@ -150,17 +207,19 @@ export function useRevenueReport() {
   });
 }
 
-export function useDocTypeCounts() {
+export function useDocTypeCounts(range?: DateRange) {
   const { company } = useAuth();
   return useQuery({
-    queryKey: ["report", "doc-types", company?.id],
+    queryKey: ["report", "doc-types", company?.id, range?.from, range?.to],
     enabled: !!company?.id,
     queryFn: async (): Promise<DocTypeCount[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("documents")
         .select("base_type,gross_amount")
         .eq("company_id", company!.id)
         .eq("is_deleted", false);
+      if (range) query = query.gte("doc_date", range.from).lte("doc_date", range.to);
+      const { data, error } = await query;
       if (error) throw error;
       const rows = data ?? [];
 
@@ -351,6 +410,143 @@ export function useTimeReport() {
         totalHours: totalMinutes / 60,
         entryCount: entries.length,
       };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Artikel & Leistungen: Top-Positionen aus zahlbaren/finalisierten Dokumenten.
+// Gruppiert nach Positionsname, summiert Menge und Netto-Zeilenbetrag.
+// ---------------------------------------------------------------------------
+
+export function useTopPositions(limit = 10) {
+  const { company } = useAuth();
+  return useQuery({
+    queryKey: ["report", "top-positions", company?.id, limit],
+    enabled: !!company?.id,
+    queryFn: async (): Promise<TopPosition[]> => {
+      // Zahlbare/finalisierte Dokumente bestimmen (nur deren Positionen zählen).
+      const { data: docs, error: docErr } = await supabase
+        .from("documents")
+        .select("id,base_type,finalized_at")
+        .eq("company_id", company!.id)
+        .eq("is_deleted", false);
+      if (docErr) throw docErr;
+      const docRows = docs ?? [];
+      const payableIds = new Set(
+        docRows
+          .filter((d) => INVOICE_TYPES.includes(d.base_type) || d.finalized_at != null)
+          .map((d) => d.id),
+      );
+
+      const { data: items, error: itemErr } = await supabase
+        .from("document_items")
+        .select("name,quantity,line_net,document_id")
+        .eq("company_id", company!.id);
+      if (itemErr) throw itemErr;
+      const rows = items ?? [];
+
+      // Falls (noch) keine zahlbaren Dokumente existieren, alle Positionen nutzen.
+      const restrict = payableIds.size > 0;
+
+      const map = new Map<string, TopPosition>();
+      for (const it of rows) {
+        if (restrict && (!it.document_id || !payableIds.has(it.document_id))) continue;
+        const name = (it.name ?? "").trim() || "Ohne Bezeichnung";
+        const e = map.get(name) ?? { name, quantity: 0, net: 0 };
+        e.quantity += Number(it.quantity ?? 0);
+        e.net += Number(it.line_net ?? 0);
+        map.set(name, e);
+      }
+      return [...map.values()].sort((a, b) => b.quantity - a.quantity).slice(0, limit);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Umsatz- & Projektübersicht: Umsatz/Monat kombiniert mit erstellten und
+// abgeschlossenen Projekten/Monat (Projekterstellung bzw. aktueller Schritt).
+// ---------------------------------------------------------------------------
+
+export function useRevenueProjectsOverview(range?: DateRange) {
+  const { company } = useAuth();
+  return useQuery({
+    queryKey: ["report", "overview", company?.id, range?.from, range?.to],
+    enabled: !!company?.id,
+    queryFn: async (): Promise<OverviewReport> => {
+      let docQuery = supabase
+        .from("documents")
+        .select("net_amount,doc_date")
+        .eq("company_id", company!.id)
+        .eq("is_deleted", false)
+        .in("base_type", INVOICE_TYPES);
+      if (range) docQuery = docQuery.gte("doc_date", range.from).lte("doc_date", range.to);
+
+      const [docRes, projRes, stepRes] = await Promise.all([
+        docQuery,
+        supabase
+          .from("projects")
+          .select("created_at,current_step_id")
+          .eq("company_id", company!.id),
+        supabase
+          .from("project_steps")
+          .select("id,base_status")
+          .eq("company_id", company!.id),
+      ]);
+      if (docRes.error) throw docRes.error;
+      if (projRes.error) throw projRes.error;
+      if (stepRes.error) throw stepRes.error;
+      const docs = docRes.data ?? [];
+      const projects = projRes.data ?? [];
+      const steps = stepRes.data ?? [];
+
+      const completedStepIds = new Set(
+        steps.filter((s) => s.base_status === "abgeschlossen").map((s) => s.id),
+      );
+      const inRange = (iso: string): boolean =>
+        !range || (iso >= range.from && iso <= range.to);
+
+      const map = new Map<string, MonthlyOverview>();
+      const ensure = (key: string): MonthlyOverview => {
+        const e =
+          map.get(key) ??
+          {
+            month: key,
+            label: monthLabel(key),
+            net: 0,
+            projectsCreated: 0,
+            projectsCompleted: 0,
+          };
+        map.set(key, e);
+        return e;
+      };
+
+      let totalNet = 0;
+      for (const d of docs) {
+        if (!d.doc_date) continue;
+        const net = Number(d.net_amount);
+        totalNet += net;
+        ensure(monthKey(d.doc_date)).net += net;
+      }
+
+      let totalCreated = 0;
+      let totalCompleted = 0;
+      for (const p of projects) {
+        if (!p.created_at) continue;
+        const iso = p.created_at.slice(0, 10);
+        if (!inRange(iso)) continue;
+        const key = monthKey(iso);
+        const e = ensure(key);
+        e.projectsCreated += 1;
+        totalCreated += 1;
+        if (p.current_step_id && completedStepIds.has(p.current_step_id)) {
+          e.projectsCompleted += 1;
+          totalCompleted += 1;
+        }
+      }
+
+      const monthly = [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
+      return { monthly, totalNet, totalCreated, totalCompleted };
     },
   });
 }

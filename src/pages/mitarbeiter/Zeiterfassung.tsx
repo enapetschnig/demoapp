@@ -8,20 +8,31 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Tabs, TabsList, TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { fmtDate, fmtNumber, toISODate } from "@/lib/format";
+import { fmtDate, fmtNumber, toISODate, parseDateSafe } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   useTimeEntries, useUpsertTimeEntry, useConfirmTimeEntry, useTimeCategories,
-  type TimeEntry,
+  type TimeEntry, type TimeCategory,
 } from "@/hooks/queries/useTime";
-import { useEmployees } from "@/hooks/queries/useEmployees";
+import { useEmployees, useAbsences, type Absence } from "@/hooks/queries/useEmployees";
 import { useProjects } from "@/hooks/queries/useProjects";
 import { Plus, Check } from "lucide-react";
+
+const ALL = "__all__";
+const NONE = "__none__";
+const WORK_HOURS_PER_DAY = 8;
 
 type Range = "heute" | "woche" | "monat" | "jahr";
 
@@ -59,6 +70,64 @@ function rangeStart(r: Range): Date {
   return d;
 }
 
+function rangeEnd(r: Range): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (r === "heute") return d;
+  if (r === "woche") {
+    const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow + 6);
+    return d;
+  }
+  if (r === "monat") { d.setMonth(d.getMonth() + 1, 0); return d; }
+  d.setMonth(11, 31); // jahr
+  return d;
+}
+
+// Nettostunden eines Eintrags: (Dauer - Pause) / 60.
+function netHours(e: TimeEntry): number {
+  const net = Number(e.duration_minutes ?? 0) - Number(e.break_minutes ?? 0);
+  return Math.max(0, net) / 60;
+}
+
+// Stunden als HH:MM (z. B. -1110:00) — entspricht der Darstellung in der Doku.
+function fmtHM(hours: number): string {
+  const neg = hours < 0;
+  const total = Math.round(Math.abs(hours) * 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${neg ? "-" : ""}${h}:${String(m).padStart(2, "0")}`;
+}
+
+// Anzahl Arbeitstage (Mo–Fr) im Zeitraum [startISO, endISO].
+function workdaysBetween(startISO: string, endISO: string): number {
+  const start = parseDateSafe(startISO);
+  const end = parseDateSafe(endISO);
+  if (!start || !end || start > end) return 0;
+  let count = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+// Überlappende Tage einer Abwesenheit mit dem Zeitraum.
+function absenceDaysInRange(a: Absence, startISO: string, endISO: string): number {
+  const aStart = (a.start_date ?? "").slice(0, 10);
+  const aEnd = (a.end_date ?? a.start_date ?? "").slice(0, 10);
+  if (!aStart) return 0;
+  const from = aStart > startISO ? aStart : startISO;
+  const to = aEnd < endISO ? aEnd : endISO;
+  if (from > to) return 0;
+  const d1 = parseDateSafe(from);
+  const d2 = parseDateSafe(to);
+  if (!d1 || !d2) return 0;
+  return Math.floor((d2.getTime() - d1.getTime()) / 86_400_000) + 1;
+}
+
 function TimeEntryDialog({
   open, onOpenChange, employees, projects, categories,
 }: {
@@ -71,7 +140,7 @@ function TimeEntryDialog({
   const upsert = useUpsertTimeEntry();
   const [f, setF] = useState<Partial<TimeEntry>>({});
   useEffect(() => {
-    if (open) setF({ entry_date: toISODate(), duration_minutes: 0, status: "vorlaeufig" });
+    if (open) setF({ entry_date: toISODate(), duration_minutes: 0, break_minutes: 0, status: "vorlaeufig" });
   }, [open]);
   const set = (k: keyof TimeEntry, v: unknown) => setF((p) => ({ ...p, [k]: v }));
   const num = (v: string) => (v === "" ? 0 : Number(v.replace(",", ".")));
@@ -104,18 +173,26 @@ function TimeEntryDialog({
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label>Projekt</Label>
-            <Select value={f.project_id ?? ""} onValueChange={(v) => set("project_id", v)}>
+            <Select
+              value={f.project_id ?? NONE}
+              onValueChange={(v) => set("project_id", v === NONE ? null : v)}
+            >
               <SelectTrigger><SelectValue placeholder="Projekt wählen (optional)" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value={NONE}>Kein Projekt</SelectItem>
                 {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label>Kategorie</Label>
-            <Select value={f.category_id ?? ""} onValueChange={(v) => set("category_id", v)}>
+            <Select
+              value={f.category_id ?? NONE}
+              onValueChange={(v) => set("category_id", v === NONE ? null : v)}
+            >
               <SelectTrigger><SelectValue placeholder="Kategorie wählen (optional)" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value={NONE}>Keine Kategorie</SelectItem>
                 {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -127,6 +204,10 @@ function TimeEntryDialog({
           <div className="space-y-1.5">
             <Label>Dauer (Minuten)</Label>
             <Input value={String(f.duration_minutes ?? 0)} onChange={(e) => set("duration_minutes", num(e.target.value))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Pause (Minuten)</Label>
+            <Input value={String(f.break_minutes ?? 0)} onChange={(e) => set("break_minutes", num(e.target.value))} />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label>Notiz</Label>
@@ -142,11 +223,25 @@ function TimeEntryDialog({
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
+function KpiCard({
+  title, rows,
+}: {
+  title: string;
+  rows: { label: string; value: string; negative?: boolean }[];
+}) {
   return (
     <Card className="p-5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-light">{value}</p>
+      <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="mt-3 space-y-2">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-baseline justify-between">
+            <span className="text-xs uppercase text-muted-foreground">{r.label}</span>
+            <span className={cn("text-xl font-light tabular-nums", r.negative && "text-destructive")}>
+              {r.value} Std
+            </span>
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }
@@ -156,9 +251,22 @@ export default function Zeiterfassung() {
   const { data: employees = [] } = useEmployees();
   const { data: projects = [] } = useProjects();
   const { data: categories = [] } = useTimeCategories();
+  const { data: absences = [] } = useAbsences();
   const confirm = useConfirmTimeEntry();
-  const [range, setRange] = useState<Range>("woche");
+
+  const [tab, setTab] = useState("zeiterfassung");
+  const [range, setRange] = useState<Range>("jahr");
+  const [start, setStart] = useState(() => toISODate(rangeStart("jahr")));
+  const [end, setEnd] = useState(() => toISODate(rangeEnd("jahr")));
+  const [employeeFilter, setEmployeeFilter] = useState<string>(ALL);
   const [open, setOpen] = useState(false);
+
+  // Schnellfilter setzt Start/Ende; manuelle Eingabe überschreibt sie.
+  const applyRange = (r: Range) => {
+    setRange(r);
+    setStart(toISODate(rangeStart(r)));
+    setEnd(toISODate(rangeEnd(r)));
+  };
 
   const empName = useMemo(() => {
     const m = new Map<string, string>();
@@ -174,6 +282,15 @@ export default function Zeiterfassung() {
     return m;
   }, [categories]);
 
+  // Nicht arbeitszeitrelevante Kategorien (z. B. Pause) → Ausgleich.
+  const nonWorkCats = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of categories as TimeCategory[]) {
+      if (c.work_relevant === false) s.add(c.id);
+    }
+    return s;
+  }, [categories]);
+
   const empOptions = useMemo(
     () => employees.map((e) => ({ id: e.id, label: [e.first_name, e.last_name].filter(Boolean).join(" ") || e.email || "—" })),
     [employees],
@@ -187,23 +304,76 @@ export default function Zeiterfassung() {
     [categories],
   );
 
+  // Einträge im Zeitraum (+ optional je Mitarbeiter).
   const rows = useMemo(() => {
-    const start = rangeStart(range);
-    const startISO = toISODate(start);
-    return entries.filter((e) => (e.entry_date ?? "") >= startISO);
-  }, [entries, range]);
+    return entries.filter((e) => {
+      const d = (e.entry_date ?? "").slice(0, 10);
+      if (d < start || d > end) return false;
+      if (employeeFilter !== ALL && e.employee_id !== employeeFilter) return false;
+      return true;
+    });
+  }, [entries, start, end, employeeFilter]);
+
+  // Abwesenheiten im Zeitraum (+ optional je Mitarbeiter).
+  const rangeAbsences = useMemo(() => {
+    return absences.filter((a) => {
+      if (employeeFilter !== ALL && a.employee_id !== employeeFilter) return false;
+      return absenceDaysInRange(a, start, end) > 0;
+    });
+  }, [absences, start, end, employeeFilter]);
 
   const kpi = useMemo(() => {
-    let minutes = 0;
-    let open = 0;
-    let confirmed = 0;
+    // Zeiterfassung
+    let beantragt = 0;
+    let bewilligt = 0;
+    let ausgleich = 0;
     for (const e of rows) {
-      minutes += Number(e.duration_minutes ?? 0);
-      if (e.status === "bestaetigt") confirmed += 1;
-      else open += 1;
+      const h = netHours(e);
+      beantragt += h;
+      if (e.status === "bestaetigt") bewilligt += h;
+      if (e.category_id && nonWorkCats.has(e.category_id)) ausgleich += h;
     }
-    return { hours: minutes / 60, count: rows.length, open, confirmed };
-  }, [rows]);
+
+    // Arbeitszeit – SOLL: Arbeitstage × 8h. Bei "Alle" je aktiver Mitarbeiter,
+    // sonst für den gewählten Mitarbeiter.
+    const activeCount = employeeFilter === ALL
+      ? Math.max(1, employees.filter((e) => e.is_active).length)
+      : 1;
+    const soll = workdaysBetween(start, end) * WORK_HOURS_PER_DAY * activeCount;
+
+    // Arbeitszeit – ABWESEND: Abwesenheitstage × 8h.
+    let abwesendDays = 0;
+    for (const a of rangeAbsences) abwesendDays += absenceDaysInRange(a, start, end);
+    const abwesend = abwesendDays * WORK_HOURS_PER_DAY;
+
+    // Zeitkonto – SALDO = BEWILLIGT - SOLL.
+    const saldo = bewilligt - soll;
+
+    return { beantragt, bewilligt, soll, abwesend, ausgleich, saldo };
+  }, [rows, rangeAbsences, nonWorkCats, employees, employeeFilter, start, end]);
+
+  // Stundenausgleich: je Mitarbeiter Soll / Ist (bewilligt) / Saldo.
+  const balanceRows = useMemo(() => {
+    const ist = new Map<string, number>();
+    for (const e of rows) {
+      if (e.status !== "bestaetigt" || !e.employee_id) continue;
+      ist.set(e.employee_id, (ist.get(e.employee_id) ?? 0) + netHours(e));
+    }
+    const sollPerEmp = workdaysBetween(start, end) * WORK_HOURS_PER_DAY;
+    const list = employeeFilter === ALL
+      ? employees.filter((e) => e.is_active)
+      : employees.filter((e) => e.id === employeeFilter);
+    return list.map((e) => {
+      const istH = ist.get(e.id) ?? 0;
+      return {
+        id: e.id,
+        name: empName.get(e.id) ?? "—",
+        soll: sollPerEmp,
+        ist: istH,
+        saldo: istH - sollPerEmp,
+      };
+    });
+  }, [rows, employees, employeeFilter, empName, start, end]);
 
   const columns: Column<TimeEntry>[] = [
     {
@@ -218,8 +388,13 @@ export default function Zeiterfassung() {
     },
     {
       key: "duration_minutes", header: "Dauer (h)", className: "text-right",
-      accessor: (r) => Number(r.duration_minutes ?? 0),
-      render: (r) => fmtNumber(Number(r.duration_minutes ?? 0) / 60),
+      accessor: (r) => netHours(r),
+      render: (r) => fmtNumber(netHours(r)),
+    },
+    {
+      key: "break_minutes", header: "Pause (min)", className: "text-right",
+      accessor: (r) => Number(r.break_minutes ?? 0),
+      render: (r) => fmtNumber(Number(r.break_minutes ?? 0), 0),
     },
     {
       key: "category_id", header: "Kategorie", filterable: true,
@@ -236,7 +411,7 @@ export default function Zeiterfassung() {
     {
       key: "actions", header: "", sortable: false, width: "140px",
       render: (r) =>
-        r.status === "bestaetigt" ? null : (
+        r.status === "eingereicht" ? (
           <Button
             size="sm"
             variant="secondary"
@@ -253,7 +428,7 @@ export default function Zeiterfassung() {
           >
             <Check className="h-3.5 w-3.5" /> Bestätigen
           </Button>
-        ),
+        ) : null,
     },
   ];
 
@@ -269,31 +444,113 @@ export default function Zeiterfassung() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {RANGES.map((r) => (
-          <Button
-            key={r.v}
-            size="sm"
-            variant={range === r.v ? "default" : "secondary"}
-            onClick={() => setRange(r.v)}
-          >
-            {r.l}
-          </Button>
-        ))}
+      <Tabs value={tab} onValueChange={setTab} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+          <TabsTrigger value="stundenausgleich">Stundenausgleich</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Zeitraum-Schnellfilter + Datumsfelder + Mitarbeiter */}
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap gap-2">
+          {RANGES.map((r) => (
+            <Button
+              key={r.v}
+              size="sm"
+              variant={range === r.v ? "default" : "secondary"}
+              onClick={() => applyRange(r.v)}
+            >
+              {r.l}
+            </Button>
+          ))}
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Start</Label>
+          <Input type="date" className="h-9 w-[150px]" value={start} onChange={(e) => setStart(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Ende</Label>
+          <Input type="date" className="h-9 w-[150px]" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Mitarbeiter</Label>
+          <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+            <SelectTrigger className="h-9 w-[220px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Alle Mitarbeiter</SelectItem>
+              {empOptions.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KpiCard label="Erfasste Stunden" value={`${fmtNumber(kpi.hours)} h`} />
-        <KpiCard label="Anzahl Einträge" value={String(kpi.count)} />
-        <KpiCard label="Offen / Bestätigt" value={`${kpi.open} / ${kpi.confirmed}`} />
+      {/* Drei KPI-Kacheln */}
+      <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <KpiCard
+          title="Zeiterfassung"
+          rows={[
+            { label: "Beantragt", value: fmtHM(kpi.beantragt) },
+            { label: "Bewilligt", value: fmtHM(kpi.bewilligt) },
+          ]}
+        />
+        <KpiCard
+          title="Arbeitszeit"
+          rows={[
+            { label: "Soll", value: fmtHM(kpi.soll) },
+            { label: "Abwesend", value: fmtHM(kpi.abwesend) },
+          ]}
+        />
+        <KpiCard
+          title="Zeitkonto"
+          rows={[
+            { label: "Ausgleich", value: fmtHM(kpi.ausgleich) },
+            { label: "Saldo", value: fmtHM(kpi.saldo), negative: kpi.saldo < 0 },
+          ]}
+        />
       </div>
 
-      <DataTable
-        data={rows}
-        columns={columns}
-        loading={isLoading}
-        getRowId={(r) => r.id}
-      />
+      {tab === "zeiterfassung" ? (
+        <DataTable
+          data={rows}
+          columns={columns}
+          loading={isLoading}
+          getRowId={(r) => r.id}
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-md border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead className="text-right">Soll</TableHead>
+                <TableHead className="text-right">Ist</TableHead>
+                <TableHead className="text-right">Saldo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {balanceRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                    Keine Mitarbeiter im Zeitraum
+                  </TableCell>
+                </TableRow>
+              ) : (
+                balanceRows.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell>{b.name}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtHM(b.soll)} Std</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtHM(b.ist)} Std</TableCell>
+                    <TableCell className={cn("text-right tabular-nums", b.saldo < 0 && "text-destructive")}>
+                      {fmtHM(b.saldo)} Std
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <TimeEntryDialog
         open={open}
