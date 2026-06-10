@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Tables, TablesInsert } from "@/integrations/supabase/helpers";
+import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/helpers";
 
 export type ProjectType = Tables<"project_types">;
 export type ProjectStep = Tables<"project_steps">;
@@ -44,11 +44,14 @@ export function useUpsertProjectType() {
   const { company } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Partial<ProjectType> & { id?: string }) => {
-      const body = { ...payload, company_id: company!.id } as TablesInsert<"project_types">;
+    mutationFn: async (payload: Partial<ProjectTypeWithSteps> & { id?: string }) => {
+      // Nur echte Spalten übernehmen (z.B. eingebettete "steps" herausfiltern).
+      const cols = ["name", "code", "color", "status", "is_standard", "is_default", "sort_order"] as const;
+      const body: Record<string, unknown> = { company_id: company!.id };
+      for (const k of cols) if (payload[k] !== undefined) body[k] = payload[k];
       const q = payload.id
-        ? supabase.from("project_types").update(body).eq("id", payload.id).select().single()
-        : supabase.from("project_types").insert(body).select().single();
+        ? supabase.from("project_types").update(body as TablesUpdate<"project_types">).eq("id", payload.id).select().single()
+        : supabase.from("project_types").insert(body as TablesInsert<"project_types">).select().single();
       const { data, error } = await q;
       if (error) throw error;
       return data;
