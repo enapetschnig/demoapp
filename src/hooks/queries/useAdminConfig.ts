@@ -40,6 +40,48 @@ export function useProjectTypesAdmin() {
   });
 }
 
+export function useUpsertProjectType() {
+  const { company } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<ProjectType> & { id?: string }) => {
+      const body = { ...payload, company_id: company!.id } as TablesInsert<"project_types">;
+      const q = payload.id
+        ? supabase.from("project_types").update(body).eq("id", payload.id).select().single()
+        : supabase.from("project_types").insert(body).select().single();
+      const { data, error } = await q;
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "project_types"] }),
+  });
+}
+
+export function useDeleteProjectType() {
+  const qc = useQueryClient();
+  return useMutation({
+    // Schritte werden per FK kaskadiert gelöscht; Projekte behalten den Bezug nicht (set null).
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("project_types").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "project_types"] }),
+  });
+}
+
+export function useSetStandardProjectType() {
+  const { company } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from("project_types").update({ is_standard: false }).eq("company_id", company!.id);
+      const { error } = await supabase.from("project_types").update({ is_standard: true }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "project_types"] }),
+  });
+}
+
 export function useUpsertProjectStep() {
   const { company } = useAuth();
   const qc = useQueryClient();

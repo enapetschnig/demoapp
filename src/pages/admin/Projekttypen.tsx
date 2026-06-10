@@ -16,10 +16,55 @@ import {
   useProjectTypesAdmin,
   useUpsertProjectStep,
   useDeleteProjectStep,
+  useUpsertProjectType,
+  useDeleteProjectType,
+  useSetStandardProjectType,
   type ProjectTypeWithSteps,
+  type ProjectType,
   type ProjectStep,
 } from "@/hooks/queries/useAdminConfig";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Trash2, MoreHorizontal, Pencil, Star, Archive } from "lucide-react";
+
+function TypeDialog({ open, onOpenChange, type }: { open: boolean; onOpenChange: (o: boolean) => void; type?: ProjectType | null }) {
+  const upsert = useUpsertProjectType();
+  const [f, setF] = useState<Partial<ProjectType>>({});
+  useEffect(() => { if (open) setF(type ?? { name: "", code: "", status: "aktiv", color: "#3b82f6" }); }, [open, type]);
+  const save = async () => {
+    if (!f.name) return toast.error("Bitte einen Namen angeben.");
+    try { await upsert.mutateAsync(f); toast.success("Projekttyp gespeichert"); onOpenChange(false); }
+    catch (e) { toast.error((e as Error).message); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{type ? "Projekttyp bearbeiten" : "Neuer Projekttyp"}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="col-span-2 space-y-1.5"><Label>Name</Label><Input value={f.name ?? ""} onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>Code/Kürzel</Label><Input value={f.code ?? ""} onChange={(e) => setF((p) => ({ ...p, code: e.target.value }))} placeholder="z.B. PV" /></div>
+          <div className="space-y-1.5"><Label>Farbe</Label><Input type="color" value={f.color ?? "#3b82f6"} onChange={(e) => setF((p) => ({ ...p, color: e.target.value }))} className="h-10 p-1" /></div>
+          <div className="space-y-1.5">
+            <Label>Status</Label>
+            <Select value={f.status ?? "aktiv"} onValueChange={(v) => setF((p) => ({ ...p, status: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="aktiv">Aktiv</SelectItem><SelectItem value="archiviert">Archiviert</SelectItem></SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+          <Button onClick={save} disabled={upsert.isPending}>Speichern</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const BASE_STATUS = [
   { v: "offen", l: "Offen" },
@@ -194,6 +239,12 @@ export default function Projekttypen() {
   const { data = [], isLoading } = useProjectTypesAdmin();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectTypeWithSteps | null>(null);
+  const [typeDialog, setTypeDialog] = useState(false);
+  const [editType, setEditType] = useState<ProjectType | null>(null);
+  const [toDelete, setToDelete] = useState<ProjectTypeWithSteps | null>(null);
+  const upsertType = useUpsertProjectType();
+  const deleteType = useDeleteProjectType();
+  const setStandard = useSetStandardProjectType();
 
   // Aktiven Typ mit frischen Daten aus der Query synchron halten.
   const current = active ? data.find((t) => t.id === active.id) ?? active : null;
@@ -219,11 +270,39 @@ export default function Projekttypen() {
       render: (r) => <Badge variant="outline">{r.steps.length}</Badge>,
     },
     { key: "status", header: "Status", render: (r) => <Badge variant="secondary">{r.status}</Badge> },
+    {
+      key: "actions", header: "", sortable: false, className: "text-right",
+      render: (r) => (
+        <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setActive(r); setOpen(true); }}><Pencil className="mr-2 h-4 w-4" /> Schritte bearbeiten</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setEditType(r); setTypeDialog(true); }}><Pencil className="mr-2 h-4 w-4" /> Typ bearbeiten</DropdownMenuItem>
+              {!r.is_standard && <DropdownMenuItem onClick={async () => { await setStandard.mutateAsync(r.id); toast.success("Als Standard gesetzt"); }}><Star className="mr-2 h-4 w-4" /> Als Standard setzen</DropdownMenuItem>}
+              <DropdownMenuItem onClick={async () => { await upsertType.mutateAsync({ id: r.id, status: r.status === "archiviert" ? "aktiv" : "archiviert" }); toast.success(r.status === "archiviert" ? "Aktiviert" : "Archiviert"); }}>
+                <Archive className="mr-2 h-4 w-4" /> {r.status === "archiviert" ? "Aktivieren" : "Archivieren"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setToDelete(r)}>
+                <Trash2 className="mr-2 h-4 w-4" /> Löschen
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
   ];
 
   return (
     <div>
-      <PageHeader title="Projekttypen" subtitle="Projekttypen & deren Bearbeitungsschritte" />
+      <PageHeader
+        title="Projekttypen"
+        subtitle="Projekttypen & deren Bearbeitungsschritte"
+        actions={<Button className="gap-1.5" onClick={() => { setEditType(null); setTypeDialog(true); }}><Plus className="h-4 w-4" /> Projekttyp</Button>}
+      />
       <DataTable
         data={data}
         columns={columns}
@@ -232,6 +311,27 @@ export default function Projekttypen() {
         onRowClick={(r) => { setActive(r); setOpen(true); }}
       />
       <StepsEditor open={open} onOpenChange={setOpen} type={current} />
+      <TypeDialog open={typeDialog} onOpenChange={setTypeDialog} type={editType} />
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Projekttyp „{toDelete?.name}" löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Pipeline-Schritte werden mitgelöscht. Bestehende Projekte bleiben erhalten, verlieren aber die Gewerk-Zuordnung. Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => { if (toDelete) { await deleteType.mutateAsync(toDelete.id); toast.success("Projekttyp gelöscht"); setToDelete(null); } }}
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
