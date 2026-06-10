@@ -35,7 +35,8 @@ import {
   type DateRange,
   type TopPosition,
 } from "@/hooks/queries/useReports";
-import { BarChart3, FolderKanban, Users, Clock, Package, LineChart as LineChartIcon, Inbox, Loader2 } from "lucide-react";
+import { BarChart3, FolderKanban, Users, Clock, Package, LineChart as LineChartIcon, Map as MapIcon, Inbox, Loader2 } from "lucide-react";
+import { Projektkarte } from "@/components/Projektkarte";
 
 const CHART_COLORS = [
   "hsl(var(--primary))",
@@ -533,6 +534,9 @@ export default function Auswertungen() {
           <TabsTrigger value="uebersicht" className="gap-1.5">
             <LineChartIcon className="h-4 w-4" /> Umsatz- &amp; Projektübersicht
           </TabsTrigger>
+          <TabsTrigger value="karte" className="gap-1.5">
+            <MapIcon className="h-4 w-4" /> Projektkarte
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="umsaetze"><UmsaetzeTab range={range} /></TabsContent>
@@ -541,6 +545,7 @@ export default function Auswertungen() {
         <TabsContent value="artikel"><ArtikelTab /></TabsContent>
         <TabsContent value="mitarbeitende"><MitarbeitendeTab /></TabsContent>
         <TabsContent value="uebersicht"><UebersichtTab range={range} /></TabsContent>
+        <TabsContent value="karte"><Projektkarte /></TabsContent>
       </Tabs>
     </div>
   );

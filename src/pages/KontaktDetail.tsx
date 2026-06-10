@@ -4,6 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useContact } from "@/hooks/queries/useContacts";
 import { useAuth } from "@/contexts/AuthContext";
+import { useObjectAddresses, useUpsertObjectAddress, useDeleteObjectAddress } from "@/hooks/queries/useDetailExtras";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { ContactDialog } from "@/components/ContactDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -12,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { fmtEUR, fmtDate, fmtDateTime } from "@/lib/format";
 import { docLabel } from "@/lib/documentTypes";
-import { Pencil, Mail, Phone, MapPin, ArrowLeft } from "lucide-react";
+import { Pencil, Mail, Phone, MapPin, ArrowLeft, Trash2, Plus, MapPinned } from "lucide-react";
 
 export default function KontaktDetail() {
   const { id } = useParams();
@@ -60,6 +63,17 @@ export default function KontaktDetail() {
     queryFn: async () => (await supabase.from("orders").select("id,order_number,title,status,start_at").eq("company_id", company!.id).eq("customer_id", id!).order("created_at", { ascending: false })).data ?? [],
   });
 
+  const { data: objekte = [] } = useObjectAddresses(id);
+  const upsertObj = useUpsertObjectAddress();
+  const delObj = useDeleteObjectAddress();
+  const [objForm, setObjForm] = useState({ label: "", street: "", zip: "", city: "" });
+  const addObjekt = async () => {
+    if (!id || (!objForm.street && !objForm.label)) return;
+    await upsertObj.mutateAsync({ contact_id: id, ...objForm });
+    setObjForm({ label: "", street: "", zip: "", city: "" });
+    toast.success("Objektadresse gespeichert");
+  };
+
   if (isLoading) return <div className="text-muted-foreground">Lädt…</div>;
   if (!contact) return <div className="text-muted-foreground">Kontakt nicht gefunden.</div>;
 
@@ -102,6 +116,7 @@ export default function KontaktDetail() {
               <TabsTrigger value="projekte">Projekte ({projects.length})</TabsTrigger>
               <TabsTrigger value="ansprechpartner">Ansprechpartner ({ansprechpartner.length})</TabsTrigger>
               <TabsTrigger value="auftraege">Aufträge ({auftraege.length})</TabsTrigger>
+              <TabsTrigger value="objekte">Objektadressen ({objekte.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="dokumente" className="pt-3">
@@ -164,6 +179,26 @@ export default function KontaktDetail() {
                     <div key={o.id} className="flex items-center justify-between py-2 text-sm cursor-pointer hover:bg-muted/40 px-2 -mx-2 rounded" onClick={() => navigate("/auftraege")}>
                       <span><span className="text-link">{o.order_number ?? "—"}</span> · {o.title}</span>
                       <span className="text-muted-foreground">{o.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="objekte" className="pt-3">
+              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <Input placeholder="Bezeichnung" value={objForm.label} onChange={(e) => setObjForm((f) => ({ ...f, label: e.target.value }))} />
+                <Input placeholder="Straße" value={objForm.street} onChange={(e) => setObjForm((f) => ({ ...f, street: e.target.value }))} />
+                <Input placeholder="PLZ" value={objForm.zip} onChange={(e) => setObjForm((f) => ({ ...f, zip: e.target.value }))} />
+                <Input placeholder="Ort" value={objForm.city} onChange={(e) => setObjForm((f) => ({ ...f, city: e.target.value }))} />
+                <Button onClick={addObjekt} className="gap-1.5"><Plus className="h-4 w-4" /> Hinzufügen</Button>
+              </div>
+              {objekte.length === 0 ? <p className="text-sm text-muted-foreground">Keine Objektadressen.</p> : (
+                <div className="divide-y">
+                  {objekte.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between py-2 text-sm">
+                      <span className="flex items-center gap-2"><MapPinned className="h-4 w-4 text-muted-foreground" />{[o.label, o.street, `${o.zip ?? ""} ${o.city ?? ""}`.trim()].filter(Boolean).join(" · ")}</span>
+                      <button onClick={async () => { await delObj.mutateAsync(o.id); toast.success("Gelöscht"); }}><Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" /></button>
                     </div>
                   ))}
                 </div>

@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject, useProjectTypes, useMoveProjectStep, useActivityLog, useAddLogEntry } from "@/hooks/queries/useProjects";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProjectChecklists, useUpsertProjectChecklist, useDeleteProjectChecklist, useChecklistTemplates, type ChecklistItem } from "@/hooks/queries/useDetailExtras";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +14,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { fmtEUR, fmtDate, fmtDateTime, fmtNumber } from "@/lib/format";
 import { docLabel } from "@/lib/documentTypes";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, User, FilePlus, GitBranch, ListChecks, FileText, MessageSquarePlus, CheckSquare, CalendarDays, Users, Image as ImageIcon, Clock, Package, BarChart3, Upload } from "lucide-react";
+import { ArrowLeft, MapPin, User, FilePlus, GitBranch, ListChecks, FileText, MessageSquarePlus, CheckSquare, CalendarDays, Users, Image as ImageIcon, Clock, Package, BarChart3, Upload, ClipboardCheck, Plus, Trash2 } from "lucide-react";
 
 const TABS = [
   { v: "logbuch", l: "Logbuch", icon: ListChecks },
@@ -23,6 +25,7 @@ const TABS = [
   { v: "aufgaben", l: "Aufgaben", icon: CheckSquare },
   { v: "material", l: "Materialbelege", icon: Package },
   { v: "sollist", l: "Soll/Ist", icon: BarChart3 },
+  { v: "checklisten", l: "Checklisten", icon: ClipboardCheck },
   { v: "beteiligte", l: "Beteiligte", icon: Users },
 ];
 
@@ -98,6 +101,32 @@ export default function ProjektDetail() {
   const istMaterial = belege.filter((b) => b.type !== "einnahme").reduce((s, b) => s + Number(b.gross_amount ?? 0), 0);
   const istStunden = zeiten.reduce((s, z) => s + (Number(z.duration_minutes ?? 0) - Number(z.break_minutes ?? 0)) / 60, 0);
   const istLohn = istStunden * 35;
+
+  const { data: checklists = [] } = useProjectChecklists(id);
+  const { data: clTemplates = [] } = useChecklistTemplates();
+  const upsertChecklist = useUpsertProjectChecklist();
+  const delChecklist = useDeleteProjectChecklist();
+  const [newItemText, setNewItemText] = useState<Record<string, string>>({});
+
+  const itemsOf = (cl: { items: unknown }): ChecklistItem[] =>
+    Array.isArray(cl.items) ? (cl.items as ChecklistItem[]) : [];
+
+  const addChecklist = async (tpl?: { name: string; items: unknown }) => {
+    const items: ChecklistItem[] = Array.isArray(tpl?.items)
+      ? (tpl!.items as unknown[]).map((x) => ({ text: typeof x === "string" ? x : String((x as { text?: string })?.text ?? ""), done: false }))
+      : [];
+    await upsertChecklist.mutateAsync({ project_id: id!, name: tpl?.name ?? "Checkliste", items });
+  };
+  const toggleItem = async (cl: { id: string; name: string; items: unknown }, idx: number) => {
+    const items = itemsOf(cl).map((it, i) => (i === idx ? { ...it, done: !it.done } : it));
+    await upsertChecklist.mutateAsync({ id: cl.id, project_id: id!, name: cl.name, items });
+  };
+  const addItem = async (cl: { id: string; name: string; items: unknown }) => {
+    const text = (newItemText[cl.id] ?? "").trim();
+    if (!text) return;
+    await upsertChecklist.mutateAsync({ id: cl.id, project_id: id!, name: cl.name, items: [...itemsOf(cl), { text, done: false }] });
+    setNewItemText((s) => ({ ...s, [cl.id]: "" }));
+  };
 
   if (isLoading) return <div className="text-muted-foreground">Lädt…</div>;
   if (!project) return <div className="text-muted-foreground">Projekt nicht gefunden.</div>;
@@ -308,6 +337,47 @@ export default function ProjektDetail() {
               <div className="flex items-center justify-between border-b py-2"><span className="text-muted-foreground">Ist Lohn ({fmtNumber(istStunden, 1)} h × 35 €)</span><span>{fmtEUR(istLohn)}</span></div>
               <div className="flex items-center justify-between border-b py-2"><span className="text-muted-foreground">Ist Kosten gesamt</span><span className="font-medium">{fmtEUR(istMaterial + istLohn)}</span></div>
               <div className="flex items-center justify-between py-2 text-base font-semibold"><span>Deckungsbeitrag</span><span className={Number(project.value) - istMaterial - istLohn >= 0 ? "text-success" : "text-destructive"}>{fmtEUR(Number(project.value) - istMaterial - istLohn)}</span></div>
+            </div>
+          )}
+
+          {tab === "checklisten" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => addChecklist()}><Plus className="h-4 w-4" /> Leere Checkliste</Button>
+                {clTemplates.map((tpl) => (
+                  <Button key={tpl.id} size="sm" variant="outline" onClick={() => addChecklist(tpl)}>{tpl.name}</Button>
+                ))}
+              </div>
+              {checklists.length === 0 ? <p className="text-sm text-muted-foreground">Keine Checklisten. Lege eine an (leer oder aus Vorlage).</p> : (
+                <div className="space-y-4">
+                  {checklists.map((cl) => {
+                    const items = itemsOf(cl);
+                    const done = items.filter((i) => i.done).length;
+                    return (
+                      <div key={cl.id} className="rounded-md border p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="font-medium">{cl.name} <span className="text-xs text-muted-foreground">({done}/{items.length})</span></span>
+                          <button onClick={async () => { await delChecklist.mutateAsync(cl.id); toast.success("Checkliste gelöscht"); }}><Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" /></button>
+                        </div>
+                        <div className="space-y-1.5">
+                          {items.map((it, idx) => (
+                            <label key={idx} className="flex items-center gap-2 text-sm">
+                              <Checkbox checked={it.done} onCheckedChange={() => toggleItem(cl, idx)} />
+                              <span className={it.done ? "text-muted-foreground line-through" : ""}>{it.text}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          <Input value={newItemText[cl.id] ?? ""} placeholder="Punkt hinzufügen…" className="h-8"
+                            onChange={(e) => setNewItemText((s) => ({ ...s, [cl.id]: e.target.value }))}
+                            onKeyDown={(e) => e.key === "Enter" && addItem(cl)} />
+                          <Button size="sm" variant="secondary" onClick={() => addItem(cl)}>+</Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </Card>
