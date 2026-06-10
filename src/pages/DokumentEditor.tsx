@@ -55,6 +55,7 @@ export default function DokumentEditor() {
   const [projectId] = useState<string>(sp.get("project") ?? "");
   const [subject, setSubject] = useState("");
   const [docDate, setDocDate] = useState(toISODate());
+  const [serviceDate, setServiceDate] = useState("");
   const [introText, setIntroText] = useState("");
   const [outroText, setOutroText] = useState("");
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -85,7 +86,7 @@ export default function DokumentEditor() {
     if (!isNew && loaded?.doc && !initialized) {
       const d = loaded.doc;
       setDocId(d.id); setBaseType(d.base_type); setCustomerId(d.customer_id ?? "");
-      setSubject(d.subject ?? ""); setDocDate(d.doc_date); setIntroText(d.intro_text ?? "");
+      setSubject(d.subject ?? ""); setDocDate(d.doc_date); setServiceDate(d.service_date ?? ""); setIntroText(d.intro_text ?? "");
       setOutroText(d.outro_text ?? ""); setDiscountPercent(Number(d.discount_percent ?? 0));
       setNumber(d.number); setStatus(d.status);
       setItems((loaded.items ?? []).map((it) => ({
@@ -144,7 +145,7 @@ export default function DokumentEditor() {
 
   const buildPayload = () => ({
     id: docId ?? undefined, base_type: baseType, customer_id: customerId || null,
-    project_id: projectId || null, subject, doc_date: docDate,
+    project_id: projectId || null, subject, doc_date: docDate, service_date: serviceDate || null,
     intro_text: introText, outro_text: outroText, discount_percent: discountPercent,
     items: items.map<SaveItem>((i) => ({
       kind: i.kind, article_id: i.article_id ?? null, service_id: i.service_id ?? null,
@@ -207,6 +208,7 @@ export default function DokumentEditor() {
       },
       docTitle: docLabel(baseType), number: number ?? "ENTWURF",
       date: new Intl.DateTimeFormat("de-AT").format(new Date(`${docDate}T12:00:00`)),
+      baseType, serviceDate: serviceDate ? new Intl.DateTimeFormat("de-AT").format(new Date(`${serviceDate}T12:00:00`)) : undefined,
       subject, introHtml: introText, outroHtml: outroText,
       items: pdfItems, calc,
       showPrices: cfg.showPositions && baseType !== "lieferschein" && !hidePrices,
@@ -323,7 +325,10 @@ export default function DokumentEditor() {
                 <SelectContent>{contacts.map((c) => <SelectItem key={c.id} value={c.id}>{contactLabel(c)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label>Datum</Label><Input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{cfg.isInvoiceLike ? "Belegdatum" : "Datum"}</Label><Input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} /></div>
+            {cfg.showLeistungsdatum && (
+              <div className="space-y-1.5"><Label>Leistungsdatum</Label><Input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} /></div>
+            )}
             <div className="space-y-1.5"><Label>Betreff (BV)</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
           </div>
 

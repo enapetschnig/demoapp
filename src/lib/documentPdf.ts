@@ -17,9 +17,28 @@ export interface PdfItem {
 export interface PdfData {
   company: PdfCompany; recipient: PdfRecipient;
   docTitle: string; number: string; date: string; subject?: string;
+  baseType?: string; serviceDate?: string;
   introHtml?: string; outroHtml?: string;
   items: PdfItem[]; calc: CalcResult; showPrices: boolean;
   layout?: PdfLayout;
+}
+
+// Dokumentüberschrift je Typ (laut Anforderungsdokument).
+const HEADING_PREFIX: Record<string, string> = {
+  angebot: "Angebot-Nr.", rechnung: "Rechnung-Nr.", rechnung_13b: "Abschlussrechnung",
+  gutschrift: "Gutschrift Nr.", stornorechnung: "Stornorechnung Nr.",
+  auftragsbestaetigung: "Auftragsbestätigung Nr.", lieferschein: "Lieferschein Nr.",
+  aufmassdokument: "Aufmaß Nr.", brief: "Brief-Nr.", arbeitsbericht: "Arbeitsbericht-Nr.",
+  bestellschein: "Bestellschein Nr.", baustellenbericht: "Baustellenbericht-Nr.",
+  reparaturauftrag: "Reparaturauftrag Nr.", wartungsauftrag: "Wartungsauftrag Nr.",
+  mahnung: "Mahnung Nr.", kalkulation: "Kalkulation Nr.",
+};
+const INVOICE_LIKE = new Set(["rechnung", "rechnung_13b", "gutschrift", "stornorechnung"]);
+const WITH_CONTACT = new Set(["angebot", "rechnung", "rechnung_13b", "gutschrift", "stornorechnung", "auftragsbestaetigung", "lieferschein"]);
+
+function headingText(base: string | undefined, fallback: string, number: string): string {
+  if (base === "allgemein") return `Betreff ${number}`;
+  return `${HEADING_PREFIX[base ?? ""] ?? `${fallback}-Nr.`} ${number}`;
 }
 
 export interface PdfLayout {
@@ -42,6 +61,24 @@ export function buildDocumentHtml(d: PdfData): string {
   const font = L.fontFamily ? `${L.fontFamily}, Arial, sans-serif` : "Arial, Helvetica, sans-serif";
   const showDesc = L.showDescription !== false;
   const senderLine = [c.name, c.street, `${c.zip ?? ""} ${c.city ?? ""}`.trim()].filter(Boolean).join(" · ");
+
+  // Typ-spezifischer Infoblock (Nummer-/Datumsbezeichnung, Leistungsdatum, Ansprechpartner)
+  const base = d.baseType;
+  const numberLabel = base === "angebot" ? "Angebotsnummer" : INVOICE_LIKE.has(base ?? "") ? "Rechnungsnummer" : "Dokumentnummer";
+  const dateLabel = INVOICE_LIKE.has(base ?? "") ? "Belegdatum" : "Datum";
+  const showLeistungsdatum = (base === "rechnung" || base === "rechnung_13b") && !!d.serviceDate;
+  const showContact = WITH_CONTACT.has(base ?? "");
+  const infoRow = (l: string, v: string) => `<tr><td style="color:#666;padding-right:12px">${l}</td><td>${esc(v)}</td></tr>`;
+  const infoBlock = `<table style="font-size:11px;line-height:1.6">
+    <tr><td style="color:#666;padding-right:12px">${numberLabel}</td><td style="font-weight:bold">${esc(d.number)}</td></tr>
+    ${infoRow(dateLabel, d.date)}
+    ${showLeistungsdatum ? infoRow("Leistungsdatum", d.serviceDate!) : ""}
+    ${d.recipient.customerNumber ? infoRow("Kundennr.", d.recipient.customerNumber) : ""}
+    ${showContact && d.recipient.contactPerson ? infoRow("Ansprechpartner", d.recipient.contactPerson) : ""}
+    ${showContact && d.recipient.mobile ? infoRow("Mobil", d.recipient.mobile) : ""}
+    ${showContact && d.recipient.email ? infoRow("E-Mail", d.recipient.email) : ""}
+  </table>`;
+  const heading = headingText(base, d.docTitle, d.number);
   const rows = d.items.map((it) => {
     if (it.kind === "titel") {
       return `<tr><td colspan="6" style="padding:8px 6px;font-weight:bold;border-top:1px solid #ddd">${esc(it.name)}</td></tr>`;
@@ -88,17 +125,10 @@ export function buildDocumentHtml(d: PdfData): string {
         ${d.recipient.street ? `<div>${esc(d.recipient.street)}</div>` : ""}
         <div>${esc(`${d.recipient.zip ?? ""} ${d.recipient.city ?? ""}`.trim())}</div>
       </div>
-      <table style="font-size:11px;line-height:1.6">
-        <tr><td style="color:#666;padding-right:12px">${esc(d.docTitle)}-Nr.</td><td style="font-weight:bold">${esc(d.number)}</td></tr>
-        <tr><td style="color:#666">Datum</td><td>${esc(d.date)}</td></tr>
-        ${d.recipient.customerNumber ? `<tr><td style="color:#666">Kundennr.</td><td>${esc(d.recipient.customerNumber)}</td></tr>` : ""}
-        ${d.recipient.contactPerson ? `<tr><td style="color:#666">Ansprechpartner</td><td>${esc(d.recipient.contactPerson)}</td></tr>` : ""}
-        ${d.recipient.mobile ? `<tr><td style="color:#666">Mobil</td><td>${esc(d.recipient.mobile)}</td></tr>` : ""}
-        ${d.recipient.email ? `<tr><td style="color:#666">E-Mail</td><td>${esc(d.recipient.email)}</td></tr>` : ""}
-      </table>
+      ${infoBlock}
     </div>
     ${d.subject ? `<div style="margin-top:24px;font-weight:bold;font-size:14px">BV: ${esc(d.subject)}</div>` : ""}
-    <h1 style="font-size:18px;font-weight:600;margin:16px 0 4px">${esc(d.docTitle)} ${esc(d.number)}</h1>
+    <h1 style="font-size:18px;font-weight:600;margin:16px 0 4px">${esc(heading)}</h1>
     ${d.introHtml ? `<div style="margin:8px 0">${d.introHtml}</div>` : ""}
     <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:12px">
       <thead><tr style="background:#f3f4f6;text-align:left">

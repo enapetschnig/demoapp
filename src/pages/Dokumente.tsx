@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { fmtEUR, fmtDate } from "@/lib/format";
 import { docLabel, DOC_STATUS_LABELS } from "@/lib/documentTypes";
 import { useDocuments, type DocumentRow } from "@/hooks/queries/useDocuments";
+import { openCreateDocument } from "@/components/CreateDocumentDialog";
 import { Plus } from "lucide-react";
 
 const custName = (d: DocumentRow) =>
@@ -37,7 +38,7 @@ export default function Dokumente() {
       <PageHeader
         title="Dokumente"
         subtitle="Übersicht über erstellte Dokumente"
-        actions={<Button onClick={() => navigate("/dokumente/neu")} className="gap-1.5"><Plus className="h-4 w-4" /> Dokument</Button>}
+        actions={<Button onClick={openCreateDocument} className="gap-1.5"><Plus className="h-4 w-4" /> Dokument</Button>}
       />
       <DataTable data={data} columns={columns} loading={isLoading} getRowId={(d) => d.id} onRowClick={(d) => navigate(`/dokumente/${d.id}`)} />
     </div>

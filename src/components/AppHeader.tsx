@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { QUICK_CREATE } from "@/lib/navigation";
+import { openCreateDocument } from "@/components/CreateDocumentDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -39,7 +40,7 @@ export function AppHeader() {
           <DropdownMenuLabel>Schnell anlegen</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {QUICK_CREATE.map((q) => (
-            <DropdownMenuItem key={q.to} onClick={() => navigate(q.to)}>
+            <DropdownMenuItem key={q.to} onClick={() => (q.label === "Dokument" ? openCreateDocument() : navigate(q.to))}>
               {q.label}
             </DropdownMenuItem>
           ))}

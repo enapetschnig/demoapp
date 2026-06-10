@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { openCreateDocument } from "@/components/CreateDocumentDialog";
 import {
   Gauge, FilePen, ListChecks, Users, CalendarDays, BookOpen, IdCard, Settings, Plus,
 } from "lucide-react";
@@ -64,7 +65,7 @@ export default function Dashboard() {
           Es befinden sich <span className="text-success">{projects.data ?? 0}</span> aktive Projekte in der Pipeline.
         </DashCard>
 
-        <DashCard icon={FilePen} title="Dokumente" onOpen={() => navigate("/dokumente")} onCreate={() => navigate("/dokumente/neu")}>
+        <DashCard icon={FilePen} title="Dokumente" onOpen={() => navigate("/dokumente")} onCreate={openCreateDocument}>
           Erstellen Sie Angebote oder Rechnungen und versenden Sie diese mit einem Klick per E-Mail an den Kunden.
         </DashCard>
 
