@@ -83,11 +83,11 @@ export default function KontaktDetail() {
         </Card>
 
         <Card className="p-5 lg:col-span-2">
-          <Tabs defaultValue="dokumente">
+          <Tabs defaultValue="logbuch">
             <TabsList>
+              <TabsTrigger value="logbuch">Logbuch</TabsTrigger>
               <TabsTrigger value="dokumente">Dokumente ({documents.length})</TabsTrigger>
               <TabsTrigger value="projekte">Projekte ({projects.length})</TabsTrigger>
-              <TabsTrigger value="logbuch">Logbuch</TabsTrigger>
             </TabsList>
 
             <TabsContent value="dokumente" className="pt-3">

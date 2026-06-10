@@ -12,11 +12,14 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { fmtEUR, fmtDate, fmtDateTime } from "@/lib/format";
 import { docLabel } from "@/lib/documentTypes";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, User, FilePlus, GitBranch, ListChecks, FileText, MessageSquarePlus } from "lucide-react";
+import { ArrowLeft, MapPin, User, FilePlus, GitBranch, ListChecks, FileText, MessageSquarePlus, CheckSquare, CalendarDays, Users } from "lucide-react";
 
 const TABS = [
   { v: "logbuch", l: "Logbuch", icon: ListChecks },
   { v: "dokumente", l: "Dokumente", icon: FileText },
+  { v: "aufgaben", l: "Aufgaben", icon: CheckSquare },
+  { v: "termine", l: "Termine", icon: CalendarDays },
+  { v: "beteiligte", l: "Beteiligte", icon: Users },
 ];
 
 export default function ProjektDetail() {
@@ -35,6 +38,18 @@ export default function ProjektDetail() {
     queryKey: ["project-docs", id, company?.id],
     enabled: !!id && !!company?.id,
     queryFn: async () => (await supabase.from("documents").select("id,base_type,number,gross_amount,status,doc_date").eq("company_id", company!.id).eq("project_id", id!).order("doc_date", { ascending: false })).data ?? [],
+  });
+
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["project-tasks", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("tasks").select("id,title,due_date,done_at").eq("company_id", company!.id).eq("project_id", id!).order("due_date", { ascending: true, nullsFirst: false })).data ?? [],
+  });
+
+  const { data: termine = [] } = useQuery({
+    queryKey: ["project-termine", id, company?.id],
+    enabled: !!id && !!company?.id,
+    queryFn: async () => (await supabase.from("appointments").select("id,title,start_at,end_at").eq("company_id", company!.id).eq("project_id", id!).order("start_at", { ascending: true })).data ?? [],
   });
 
   if (isLoading) return <div className="text-muted-foreground">Lädt…</div>;
@@ -133,6 +148,57 @@ export default function ProjektDetail() {
                 ))}
               </div>
             )
+          )}
+
+          {tab === "aufgaben" && (
+            tasks.length === 0 ? <p className="text-sm text-muted-foreground">Keine Aufgaben zu diesem Projekt.</p> : (
+              <div className="divide-y">
+                {tasks.map((t) => {
+                  const overdue = !t.done_at && t.due_date && new Date(`${t.due_date}T12:00:00`).getTime() < Date.now();
+                  return (
+                    <div key={t.id} className="flex items-center justify-between py-2 text-sm">
+                      <span className="flex items-center gap-2">
+                        <CheckSquare className={`h-4 w-4 ${t.done_at ? "text-success" : "text-muted-foreground"}`} />
+                        {t.title}
+                      </span>
+                      <span className={overdue ? "text-destructive" : "text-muted-foreground"}>
+                        {t.done_at ? "erledigt" : t.due_date ? fmtDate(t.due_date) : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+
+          {tab === "termine" && (
+            termine.length === 0 ? <p className="text-sm text-muted-foreground">Keine Termine zu diesem Projekt.</p> : (
+              <div className="divide-y">
+                {termine.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between py-2 text-sm">
+                    <span>{a.title}</span>
+                    <span className="text-muted-foreground">{fmtDateTime(a.start_at)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {tab === "beteiligte" && (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between border-b py-2">
+                <span className="text-muted-foreground">Kunde</span>
+                <span className="font-medium">{cust}</span>
+              </div>
+              <div className="flex items-center justify-between border-b py-2">
+                <span className="text-muted-foreground">Gewerk</span>
+                <span className="font-medium">{project.project_types?.name ?? "—"}</span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-muted-foreground">Phase</span>
+                <span className="font-medium">{project.current_step?.name ?? "—"}</span>
+              </div>
+            </div>
           )}
         </Card>
       </div>
